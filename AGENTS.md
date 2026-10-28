@@ -24,7 +24,7 @@ Le dépôt contient le firmware d'une boîte à histoires enfant basée sur ESP3
 - Ne pas introduire de secret Wi-Fi en dur dans le dépôt.
 - Logs série: toujours `logLine(tag, format, ...)` ([src/logger.h](src/logger.h)), jamais `Serial.print` directement (deux tâches écrivent en parallèle).
 - Code et commentaires en français, comme le reste du dépôt.
-- Licences (format REUSE, [REUSE.toml](REUSE.toml)): code sous GPL-3.0-or-later, `hardware/`, `docs/` et les `.md` sous CC BY-SA 4.0. Tout nouveau fichier de code commence par `SPDX-License-Identifier: GPL-3.0-or-later` (en commentaire); un code repris d'ailleurs garde sa licence, déclarée dans `REUSE.toml` et `LICENSES/`.
+- Licences (format REUSE, [REUSE.toml](REUSE.toml)): code sous GPL-3.0-or-later, `hardware/`, `docs/` et les `.md` sous CC BY-SA 4.0. Tout nouveau fichier de code commence par l'en-tête SPDX de la GPL, en commentaire, copié d'un fichier voisin; un code repris d'ailleurs garde sa licence, déclarée dans `REUSE.toml` et `LICENSES/`.
 - Documentation: utilisation dans [docs/usage.md](docs/usage.md), API dans [docs/api.md](docs/api.md), boîtier dans [hardware/](hardware/README.md). Une fonction visible par l'utilisateur ou une route modifiée met à jour ces fichiers et [CHANGELOG.md](CHANGELOG.md).
 
 ## Architecture d'exécution (à respecter)

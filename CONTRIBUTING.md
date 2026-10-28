@@ -33,7 +33,7 @@ La CI (GitHub Actions) compile le firmware et la page, lance les tests, vérifie
 - Code, commentaires, interface, messages et documentation **en français**, comme le reste du dépôt.
 - Logs série par `logLine(tag, format, …)`, jamais `Serial.print`.
 - Pas de secret (mot de passe Wi-Fi, clé) dans le dépôt.
-- Nouveau fichier: il est couvert par [REUSE.toml](REUSE.toml) selon son dossier. Un fichier de code commence par l'en-tête `SPDX-License-Identifier: GPL-3.0-or-later`; un fichier repris d'ailleurs garde sa licence d'origine, à déclarer dans `REUSE.toml` et `LICENSES/`.
+- Nouveau fichier: il est couvert par [REUSE.toml](REUSE.toml) selon son dossier. Un fichier de code commence par l'en-tête SPDX de la GPL-3.0-or-later (première ligne de chaque fichier de `src/`, à recopier); un fichier repris d'ailleurs garde sa licence d'origine, à déclarer dans `REUSE.toml` et `LICENSES/`.
 
 ## Licence des contributions
 
