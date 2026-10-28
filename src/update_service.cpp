@@ -55,6 +55,46 @@ String lowercase(String value) {
   return value;
 }
 
+// Fichier enregistré dans LittleFS identique au fichier publié (taille et SHA-256). File::write() passe par un
+// tampon et renvoie la taille demandée même quand l'écriture échoue à la fermeture (place insuffisante...): seule
+// une relecture garantit que la page n'est pas tronquée.
+bool storedFileMatches(const char* path, const update_rules::Asset& asset) {
+  File file = LittleFS.open(path, FILE_READ);
+  if (!file) {
+    return false;
+  }
+  const size_t size = file.size();
+  mbedtls_sha256_context sha;
+  mbedtls_sha256_init(&sha);
+  mbedtls_sha256_starts_ret(&sha, 0);
+  uint8_t buffer[512];
+  size_t total = 0;
+  while (file.available()) {
+    const size_t length = file.read(buffer, sizeof(buffer));
+    if (length == 0) {
+      break;
+    }
+    mbedtls_sha256_update_ret(&sha, buffer, length);
+    total += length;
+  }
+  file.close();
+  uint8_t digest[32];
+  mbedtls_sha256_finish_ret(&sha, digest);
+  mbedtls_sha256_free(&sha);
+  const bool same = size == asset.size && total == asset.size &&
+                    update_rules::toHex(digest, sizeof(digest)) == lowercase(asset.sha256);
+  if (!same) {
+    logLine("update", "%s enregistré incomplet: %u octets lus sur %lu attendus", path, static_cast<unsigned>(total),
+            static_cast<unsigned long>(asset.size));
+  }
+  return same;
+}
+
+void logFilesystemSpace() {
+  logLine("update", "LittleFS: %u octets utilisés sur %u", static_cast<unsigned>(LittleFS.usedBytes()),
+          static_cast<unsigned>(LittleFS.totalBytes()));
+}
+
 }  // namespace
 
 const char* UpdateService::phaseName(Phase phase) {
@@ -79,6 +119,7 @@ bool UpdateService::begin() {
   mutex_ = xSemaphoreCreateMutex();
   // Reste d'une mise à jour interrompue avant l'étape 3: l'ancienne page est toujours en place.
   removeIfPresent(kNewPagePath);
+  logFilesystemSpace();
   return mutex_ != nullptr;
 }
 
@@ -268,6 +309,13 @@ UpdateService::CheckResult UpdateService::check() {
 void UpdateService::install() {
   // 1. Page, à côté de l'actuelle.
   removeIfPresent(kNewPagePath);
+  logFilesystemSpace();
+  // Les deux pages doivent tenir ensemble (l'ancienne reste en place jusqu'à la fin), avec une marge pour les
+  // métadonnées de LittleFS (blocs de 4 Ko).
+  if (LittleFS.totalBytes() - LittleFS.usedBytes() < request_.page.size + 16 * 1024) {
+    fail("no_space");
+    return;
+  }
   File page = LittleFS.open(kNewPagePath, FILE_WRITE);
   if (!page) {
     fail("write_failed");
@@ -279,6 +327,11 @@ void UpdateService::install() {
   page.close();
   if (!pageOk) {
     removeIfPresent(kNewPagePath);
+    return;
+  }
+  if (!storedFileMatches(kNewPagePath, request_.page)) {
+    removeIfPresent(kNewPagePath);
+    fail("write_failed");
     return;
   }
 
@@ -307,7 +360,7 @@ void UpdateService::install() {
   // 3. Nouvelle page en place, puis redémarrage sur le nouveau firmware.
   removeIfPresent(kPagePath);
   removeIfPresent("/index.html");
-  if (!LittleFS.rename(kNewPagePath, kPagePath)) {
+  if (!LittleFS.rename(kNewPagePath, kPagePath) || !storedFileMatches(kPagePath, request_.page)) {
     // Le nouveau firmware démarrera quand même; la page pourra être renvoyée par USB (uploadfs).
     logLine("update", "Nouvelle page impossible à mettre en place");
   }
