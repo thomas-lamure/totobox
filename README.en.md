@@ -2,6 +2,7 @@
 
 # TotoBox
 
+[![CI](https://github.com/thomas-lamure/totobox/actions/workflows/ci.yml/badge.svg)](https://github.com/thomas-lamure/totobox/actions/workflows/ci.yml)
 [![Code: GPL-3.0-or-later](https://img.shields.io/badge/code-GPL--3.0--or--later-blue)](LICENSES/GPL-3.0-or-later.txt)
 [![Hardware & docs: CC BY-SA 4.0](https://img.shields.io/badge/hardware%20%26%20docs-CC%20BY--SA%204.0-lightgrey)](LICENSES/CC-BY-SA-4.0.txt)
 

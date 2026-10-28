@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Compilation du firmware et de la page web, tests sur ordinateur, fichiers de découpe à jour, licences (REUSE).
 # Le job firmware compile un dépôt propre: la version affichée est celle du commit (sans -dirty).
+# Image Ubuntu figée (pas ubuntu-latest) pour une chaîne de compilation stable: la monter à la main.
 name: CI
 
 on:
@@ -13,13 +14,13 @@ permissions:
 
 jobs:
   firmware:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.platformio
           key: pio-${{ hashFiles('platformio.ini') }}
@@ -29,22 +30,22 @@ jobs:
       - run: make test-native
 
   tools:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: "24"
       - run: node --check web/app.js && node --check scripts/mock-server.mjs
       - run: make test-scripts
       - run: make test-cad
       - run: make check-cad
 
   licences:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: fsfe/reuse-action@v5
+      - uses: actions/checkout@v7
+      - uses: fsfe/reuse-action@v6
