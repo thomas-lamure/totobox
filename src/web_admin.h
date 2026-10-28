@@ -87,14 +87,6 @@ class WebAdmin {
   void handleBackupRestore();
   void handlePurgeTrash();
   void sendJsonConfig();
-  LibrarySummary appendLibraryNode(JsonArray& out, const String& path, uint8_t depth);
-  bool isAudioFile(const String& path) const;
-  uint32_t estimateDurationSec(uint32_t sizeBytes) const;
-  String normalizeUploadTarget(const String& rawPath) const;
-  String normalizeLibraryPath(const String& rawPath) const;
-  String sanitizeUploadFilename(const String& rawName) const;
-  String sanitizeFolderName(const String& rawName) const;
-  bool isReservedName(const String& name) const;
   bool ensureDirectoryExists(const String& path);
   String resolveUploadPath(const String& targetDir, const String& safeName, const String& conflictMode) const;
   bool deletePathRecursive(const String& path);
@@ -102,7 +94,6 @@ class WebAdmin {
   bool buildTreeAtPath(JsonArray& out, const String& rootPath, bool includeTrash, uint8_t depth, LibrarySummary* summary = nullptr);
   String renamePath(const String& sourcePath, const String& desiredName, const String& conflictMode);
   String movePath(const String& sourcePath, const String& targetDir, const char*& error);
-  String originalPathFromTrash(const String& trashPath) const;
   uint64_t sdTotalBytes() const;
   uint64_t sdUsedBytes() const;
 

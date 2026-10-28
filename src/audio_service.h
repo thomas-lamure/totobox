@@ -11,6 +11,7 @@
 #include <freertos/task.h>
 
 #include "app_types.h"
+#include "playback_rules.h"
 
 // Le décodage tourne dans une tâche FreeRTOS dédiée (cœur 1, à l'écart du Wi-Fi): la lib ne décode qu'une trame MP3 (~26 ms)
 // tous les 3 appels à Audio::loop(), elle doit donc être appelée en continu, indépendamment de loop().
@@ -71,8 +72,6 @@ class AudioService {
   bool formatSdHeld();
   bool buildPlaylist(const String& path);
   bool startCurrentTrack(uint32_t resumeMs, uint32_t resumeByte);
-  bool isAudioFile(const String& path) const;
-  uint8_t mapVolume(uint8_t percent) const;
 
   Audio* audio_ = nullptr;
   SemaphoreHandle_t mutex_ = nullptr;
@@ -94,11 +93,8 @@ class AudioService {
   uint32_t pausedAtMs_ = 0;
   uint16_t pendingResumeSec_ = 0;
   // Reprise par octet: l'horloge de la lib repart de 0 (débit encore inconnu au moment du saut); la position
-  // est donc comptée depuis resumeBaseMs_, à partir de l'horloge relevée une fois la piste lancée.
-  bool byteResumed_ = false;
-  bool timeAnchorPending_ = false;
-  uint32_t resumeBaseMs_ = 0;
-  uint32_t libTimeAnchorSec_ = 0;
+  // est donc comptée depuis le signet, à partir de l'horloge relevée une fois la piste lancée.
+  playback_rules::PlaybackClock clock_;
   String requestedPath_;
   String currentPath_;
   std::vector<String> playlist_;

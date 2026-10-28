@@ -34,6 +34,8 @@ flowchart LR
 - `WebAdmin`: sert la page (LittleFS) et l'API JSON; une fois le réseau prêt, le portail captif (DNS) en point d'accès et l'annonce mDNS `totobox.local`.
 - `access_lock`: verrouillage des réglages (cartes maîtresses, code de secours haché, limitation des essais).
 - `Id3Stripper`: retire tags ID3 et pochettes des MP3 pendant l'écriture des uploads.
+- `library_paths`: règles des chemins de la bibliothèque (tout reste dans `/content`, noms nettoyés, doublons, corbeille), appliquées par `WebAdmin` avant tout accès à la carte SD.
+- `playback_rules`: décisions de lecture d'`AudioService` (reprise par octet ou en secondes selon le format, position comptée depuis le signet, ordre des pistes, niveau de volume de la lib).
 - `logger`: `logLine()` écrit chaque ligne d'un bloc sous mutex, sans jamais bloquer la tâche audio.
 
 ## Modèle d'exécution

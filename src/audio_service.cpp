@@ -7,6 +7,7 @@
 
 #include <algorithm>
 
+#include "library_paths.h"
 #include "logger.h"
 #include "totobox_config.h"
 
@@ -26,27 +27,6 @@ constexpr UBaseType_t kSdTaskPriority = 1;
 constexpr uint32_t kPositionSnapshotMs = 250;
 constexpr size_t kSectorBytes = 512;
 
-bool hasExtension(const String& path, std::initializer_list<const char*> extensions) {
-  String lower = path;
-  lower.toLowerCase();
-  for (const char* extension : extensions) {
-    if (lower.endsWith(extension)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// connecttoFS(path, octet) recale lui-même la position sur une trame pour ces formats.
-bool supportsByteResume(const String& path) {
-  return hasExtension(path, {".mp3", ".wav", ".m4a", ".flac", ".aac"});
-}
-
-// setAudioPlayPosition(): position estimée par le débit moyen (exacte en débit constant), refusée en M4A.
-bool supportsSecondResume(const String& path) {
-  return hasExtension(path, {".mp3", ".wav", ".flac", ".aac"});
-}
-
 }  // namespace
 
 bool AudioService::begin(uint8_t initialVolumePercent) {
@@ -58,7 +38,7 @@ bool AudioService::begin(uint8_t initialVolumePercent) {
 
   audio_ = new Audio();
   audio_->setPinout(totobox::kI2sBclk, totobox::kI2sLrc, totobox::kI2sDout);
-  audio_->setVolume(mapVolume(initialVolumePercent));
+  audio_->setVolume(playback_rules::libVolume(initialVolumePercent));
 
   xTaskCreatePinnedToCore(taskEntry, "audio", kAudioTaskStackBytes, this, kAudioTaskPriority, &task_, kAudioTaskCore);
   // Même cœur et même priorité que loop(): les deux se partagent le temps pendant un essai, la tâche audio
@@ -108,9 +88,9 @@ void AudioService::tick() {
     }
     // Reprise par octet: le saut est fait avant le décodage, l'horloge de la lib est relevée une fois la piste
     // lancée pour compter la position à partir du marque-page.
-    if (timeAnchorPending_ && audio_->getAudioFileDuration() > 0) {
-      libTimeAnchorSec_ = audio_->getAudioCurrentTime();
-      timeAnchorPending_ = false;
+    if (clock_.anchorPending && audio_->getAudioFileDuration() > 0) {
+      clock_.anchorSec = audio_->getAudioCurrentTime();
+      clock_.anchorPending = false;
     }
     return;
   }
@@ -181,8 +161,7 @@ void AudioService::stop() {
   playbackFinished_ = false;
   pausedAtMs_ = 0;
   pendingResumeSec_ = 0;
-  byteResumed_ = false;
-  timeAnchorPending_ = false;
+  clock_ = playback_rules::PlaybackClock();
   requestedPath_ = "";
   currentPath_ = "";
   playlist_.clear();
@@ -336,7 +315,7 @@ bool AudioService::formatSdHeld() {
 
 void AudioService::setVolumePercent(uint8_t percent) {
   Lock lock(mutex_);
-  audio_->setVolume(mapVolume(percent));
+  audio_->setVolume(playback_rules::libVolume(percent));
 }
 
 uint32_t AudioService::currentPositionMs() {
@@ -348,14 +327,7 @@ uint32_t AudioService::positionMsLocked() {
   if (!playing_) {
     return pausedAtMs_;
   }
-  if (!byteResumed_) {
-    return audio_->getAudioCurrentTime() * 1000UL;
-  }
-  if (timeAnchorPending_) {
-    return resumeBaseMs_;
-  }
-  const uint32_t libTime = audio_->getAudioCurrentTime();
-  return resumeBaseMs_ + (libTime > libTimeAnchorSec_ ? libTime - libTimeAnchorSec_ : 0) * 1000UL;
+  return playback_rules::positionMs(clock_, audio_->getAudioCurrentTime());
 }
 
 // Octet en cours de lecture: position de lecture du fichier moins ce qui attend encore dans le tampon de la lib.
@@ -363,13 +335,7 @@ uint32_t AudioService::positionByteLocked() {
   if (!playing_ || !audio_->isRunning()) {
     return 0;
   }
-  const uint32_t filePos = audio_->getFilePos();
-  const uint32_t buffered = audio_->inBufferFilled();
-  // Carte SD retirée: la lib continue de tourner et position() renvoie -1 (0xFFFFFFFF), hors du fichier.
-  if (filePos > audio_->getFileSize()) {
-    return 0;
-  }
-  return filePos > buffered ? filePos - buffered : 0;
+  return playback_rules::positionByte(audio_->getFilePos(), audio_->inBufferFilled(), audio_->getFileSize());
 }
 
 String AudioService::currentPath() const {
@@ -416,17 +382,15 @@ bool AudioService::buildPlaylist(const String& path) {
           }
         }
 
-        if (isAudioFile(entryPath)) {
+        if (library_paths::isAudioFile(entryPath)) {
           playlist_.push_back(entryPath);
         }
       }
       entry = node.openNextFile();
     }
 
-    std::sort(playlist_.begin(), playlist_.end(), [](const String& left, const String& right) {
-      return strcasecmp(left.c_str(), right.c_str()) < 0;
-    });
-  } else if (isAudioFile(path)) {
+    playback_rules::sortPlaylist(playlist_);
+  } else if (library_paths::isAudioFile(path)) {
     playlist_.push_back(path);
   }
 
@@ -447,33 +411,29 @@ bool AudioService::startCurrentTrack(uint32_t resumeMs, uint32_t resumeByte) {
   playbackFinished_ = false;
   fileReadStart = millis(); // Record the timestamp when file reading starts
   pendingResumeSec_ = 0;
-  byteResumed_ = false;
-  timeAnchorPending_ = false;
-  // Signet au-delà de la fin du fichier (fichier remplacé, ou signet faussé): on repart du début de la piste.
+  clock_ = playback_rules::PlaybackClock();
+  uint32_t fileSize = 0;
   if (resumeByte > 0) {
     File file = SD.open(currentPath_.c_str());
-    if (!file || resumeByte >= file.size()) {
-      logLine("audio", "Signet hors du fichier (octet %lu): lecture depuis le début", static_cast<unsigned long>(resumeByte));
-      resumeByte = 0;
-      resumeMs = 0;
-    }
+    fileSize = file ? file.size() : 0;
   }
-  uint32_t startByte = 0;
-  if (resumeByte > 0 && supportsByteResume(currentPath_)) {
+  const playback_rules::ResumePlan plan = playback_rules::planResume(currentPath_, resumeMs, resumeByte, fileSize);
+  if (plan.beyondEnd) {
+    logLine("audio", "Signet hors du fichier (octet %lu): lecture depuis le début", static_cast<unsigned long>(resumeByte));
+  } else if (plan.kind == playback_rules::ResumeKind::ByByte) {
     // Reprise exacte: le 3e paramètre de connecttoFS() est une position en OCTETS, recalée sur une trame par la lib.
-    startByte = resumeByte;
-    byteResumed_ = true;
-    timeAnchorPending_ = true;
-    resumeBaseMs_ = resumeMs;
-    logLine("audio", "Reprise à l'octet %lu (%lus)", static_cast<unsigned long>(resumeByte),
-            static_cast<unsigned long>(resumeMs / 1000UL));
-  } else if (resumeMs >= 1000UL && supportsSecondResume(currentPath_)) {
+    clock_.byteResumed = true;
+    clock_.anchorPending = true;
+    clock_.baseMs = plan.baseMs;
+    logLine("audio", "Reprise à l'octet %lu (%lus)", static_cast<unsigned long>(plan.startByte),
+            static_cast<unsigned long>(plan.baseMs / 1000UL));
+  } else if (plan.kind == playback_rules::ResumeKind::BySeconds) {
     // Ancien marque-page sans octet: on démarre au début puis on se repositionne dans tick().
-    pendingResumeSec_ = static_cast<uint16_t>(std::min<uint32_t>(resumeMs / 1000UL, UINT16_MAX));
-  } else if (resumeMs >= 1000UL || resumeByte > 0) {
+    pendingResumeSec_ = plan.seconds;
+  } else if (plan.unsupported) {
     logLine("audio", "Reprise impossible pour ce format: lecture depuis le début");
   }
-  playing_ = audio_->connecttoFS(SD, currentPath_.c_str(), startByte);
+  playing_ = audio_->connecttoFS(SD, currentPath_.c_str(), plan.startByte);
   if (!playing_) {
     logLine("audio", "Échec du démarrage de %s", currentPath_.c_str());
     currentPath_ = "";
@@ -483,17 +443,7 @@ bool AudioService::startCurrentTrack(uint32_t resumeMs, uint32_t resumeByte) {
   return playing_;
 }
 
-bool AudioService::isAudioFile(const String& path) const {
-  String lower = path;
-  lower.toLowerCase();
-  return lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".flac") ||
-         lower.endsWith(".aac") || lower.endsWith(".m4a") || lower.endsWith(".ogg") ||
-         lower.endsWith(".opus");
-}
 
-uint8_t AudioService::mapVolume(uint8_t percent) const {
-  return map(constrain(percent, 0, 100), 0, 100, 0, 21);
-}
 
 // Callbacks de la lib audio, appelés depuis la tâche audio. Le temps affiché est relatif au début de la piste.
 void audio_showstation(const char *info)

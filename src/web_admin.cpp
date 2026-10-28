@@ -9,6 +9,7 @@
 #include <mdns.h>
 
 #include "card_backup_sd.h"
+#include "library_paths.h"
 #include "version.h"
 #include "logger.h"
 #include "network_names.h"
@@ -21,10 +22,9 @@
 
 namespace {
 
-constexpr char kLibraryRoot[] = "/content";
-constexpr char kTrashRoot[] = "/content/.trash";
+using library_paths::kLibraryRoot;
+using library_paths::kTrashRoot;
 constexpr uint8_t kLibraryMaxDepth = 3;
-constexpr uint32_t kEstimatedBitrateBitsPerSec = 128000;
 constexpr uint16_t kDnsPort = 53;
 
 // URL de test de connectivité des téléphones et ordinateurs. Rediriger ces requêtes vers la boîte
@@ -913,12 +913,8 @@ void WebAdmin::handleUploadData() {
     }
 
     const String targetArg = server_.hasArg("targetPath") ? server_.arg("targetPath") : String(kLibraryRoot);
-    uploadTargetDir_ = normalizeUploadTarget(targetArg);
-    uploadConflictMode_ = server_.hasArg("conflictMode") ? server_.arg("conflictMode") : "rename";
-    uploadConflictMode_.toLowerCase();
-    if (uploadConflictMode_ != "replace" && uploadConflictMode_ != "reject" && uploadConflictMode_ != "rename") {
-      uploadConflictMode_ = "rename";
-    }
+    uploadTargetDir_ = library_paths::normalizeLibraryPath(targetArg);
+    uploadConflictMode_ = library_paths::normalizeConflictMode(server_.hasArg("conflictMode") ? server_.arg("conflictMode") : "rename");
 
     if (uploadTargetDir_.isEmpty()) {
       uploadError_ = "invalid_target_path";
@@ -930,8 +926,8 @@ void WebAdmin::handleUploadData() {
       return;
     }
 
-    String safeName = sanitizeUploadFilename(upload.filename);
-    if (safeName.isEmpty() || !isAudioFile(safeName)) {
+    String safeName = library_paths::sanitizeFileName(upload.filename);
+    if (safeName.isEmpty() || !library_paths::isAudioFile(safeName)) {
       uploadError_ = "invalid_file_name";
       return;
     }
@@ -1029,8 +1025,8 @@ void WebAdmin::handleCreateFolder() {
     return;
   }
 
-  const String parentPath = normalizeUploadTarget(String(static_cast<const char*>(request["parentPath"] | kLibraryRoot)));
-  const String folderName = sanitizeFolderName(String(static_cast<const char*>(request["folderName"] | "")));
+  const String parentPath = library_paths::normalizeLibraryPath(String(static_cast<const char*>(request["parentPath"] | kLibraryRoot)));
+  const String folderName = library_paths::sanitizeFolderName(String(static_cast<const char*>(request["folderName"] | "")));
   if (parentPath.isEmpty() || folderName.isEmpty()) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_folder_request\"}");
     return;
@@ -1073,7 +1069,7 @@ void WebAdmin::handleDelete() {
     return;
   }
 
-  const String path = normalizeLibraryPath(String(static_cast<const char*>(request["path"] | "")));
+  const String path = library_paths::normalizeLibraryPath(String(static_cast<const char*>(request["path"] | "")));
   if (path.isEmpty()) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_path\"}");
     return;
@@ -1147,13 +1143,13 @@ void WebAdmin::handleRestore() {
     return;
   }
 
-  const String sourcePath = normalizeLibraryPath(String(static_cast<const char*>(request["path"] | "")));
-  if (!(sourcePath == kTrashRoot || sourcePath.startsWith(String(kTrashRoot) + "/"))) {
+  const String sourcePath = library_paths::normalizeLibraryPath(String(static_cast<const char*>(request["path"] | "")));
+  if (!library_paths::isInTrash(sourcePath)) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_trash_path\"}");
     return;
   }
 
-  const String originalPath = originalPathFromTrash(sourcePath);
+  const String originalPath = library_paths::originalPathFromTrash(sourcePath);
   if (originalPath.isEmpty()) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_restore_path\"}");
     return;
@@ -1197,7 +1193,7 @@ void WebAdmin::handleRename() {
     return;
   }
 
-  const String sourcePath = normalizeLibraryPath(String(static_cast<const char*>(request["path"] | "")));
+  const String sourcePath = library_paths::normalizeLibraryPath(String(static_cast<const char*>(request["path"] | "")));
   const String desiredName = String(static_cast<const char*>(request["name"] | ""));
   const String conflictMode = String(static_cast<const char*>(request["conflictMode"] | "rename"));
   JsonDocument response;
@@ -1402,8 +1398,8 @@ void WebAdmin::handleMove() {
     return;
   }
 
-  const String sourcePath = normalizeLibraryPath(String(static_cast<const char*>(request["path"] | "")));
-  const String targetDir = normalizeLibraryPath(String(static_cast<const char*>(request["targetDir"] | "")));
+  const String sourcePath = library_paths::normalizeLibraryPath(String(static_cast<const char*>(request["path"] | "")));
+  const String targetDir = library_paths::normalizeLibraryPath(String(static_cast<const char*>(request["targetDir"] | "")));
   const char* error = nullptr;
   const String movedPath = movePath(sourcePath, targetDir, error);
 
@@ -1425,16 +1421,10 @@ void WebAdmin::handleMove() {
 // Déplace un fichier ou un dossier dans un autre dossier de la bibliothèque, sous le même nom (suffixe -1, -2...
 // si ce nom est déjà pris). Renvoie le nouveau chemin, ou "" avec `error` renseigné.
 String WebAdmin::movePath(const String& sourcePath, const String& targetDir, const char*& error) {
-  const String trashPrefix = String(kTrashRoot) + "/";
-  if (sourcePath.isEmpty() || sourcePath == kLibraryRoot || sourcePath == kTrashRoot ||
-      sourcePath.startsWith(trashPrefix) || targetDir.isEmpty() || targetDir == kTrashRoot ||
-      targetDir.startsWith(trashPrefix)) {
-    error = "invalid_path";
-    return "";
-  }
-  // Un dossier ne peut pas aller dans lui-même ni dans l'un de ses sous-dossiers.
-  if (targetDir == sourcePath || targetDir.startsWith(sourcePath + "/")) {
-    error = "invalid_move_target";
+  // Un dossier ne peut pas aller dans lui-même ni dans l'un de ses sous-dossiers; rien n'entre ni ne sort de la
+  // corbeille par ici.
+  error = library_paths::moveError(sourcePath, targetDir);
+  if (error != nullptr) {
     return "";
   }
   if (!runtime_.sdReady) {
@@ -1482,10 +1472,10 @@ void WebAdmin::handlePurgeTrash() {
       server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_json\"}");
       return;
     }
-    targetPath = normalizeLibraryPath(String(static_cast<const char*>(request["path"] | kTrashRoot)));
+    targetPath = library_paths::normalizeLibraryPath(String(static_cast<const char*>(request["path"] | kTrashRoot)));
   }
 
-  if (!(targetPath == kTrashRoot || targetPath.startsWith(String(kTrashRoot) + "/"))) {
+  if (!library_paths::isInTrash(targetPath)) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_trash_path\"}");
     return;
   }
@@ -1513,190 +1503,8 @@ void WebAdmin::handlePurgeTrash() {
   server_.send(response["ok"] | false ? 200 : 400, "application/json", payload);
 }
 
-WebAdmin::LibrarySummary WebAdmin::appendLibraryNode(JsonArray& out, const String& path, uint8_t depth) {
-  LibrarySummary summary;
-  if (depth > kLibraryMaxDepth) {
-    return summary;
-  }
-
-  File dir = SD.open(path.c_str());
-  if (!dir || !dir.isDirectory()) {
-    if (dir) {
-      dir.close();
-    }
-    return summary;
-  }
-
-  std::vector<SdEntryInfo> entries;
-  File entry = dir.openNextFile();
-  while (entry) {
-    String name = entry.name();
-    if (!name.startsWith("/")) {
-      if (path == "/") {
-        name = "/" + name;
-      } else {
-        name = path + "/" + name;
-      }
-    }
-
-    const bool entryIsDirectory = entry.isDirectory();
-    if (name == kTrashRoot || name.startsWith(String(kTrashRoot) + "/")) {
-      entry.close();
-      entry = dir.openNextFile();
-      continue;
-    }
-
-    if (entryIsDirectory || isAudioFile(name)) {
-      SdEntryInfo info;
-      info.path = name;
-      info.isDirectory = entryIsDirectory;
-      info.size = static_cast<uint32_t>(entry.size());
-      entries.push_back(info);
-    }
-
-    entry.close();
-    entry = dir.openNextFile();
-  }
-
-  std::sort(entries.begin(), entries.end(), [](const SdEntryInfo& left, const SdEntryInfo& right) {
-    if (left.isDirectory != right.isDirectory) {
-      return left.isDirectory > right.isDirectory;
-    }
-    return strcasecmp(left.path.c_str(), right.path.c_str()) < 0;
-  });
-
-  for (const SdEntryInfo& info : entries) {
-    if (info.isDirectory) {
-      JsonObject item = out.add<JsonObject>();
-      item["path"] = info.path;
-      item["type"] = "directory";
-      JsonArray children = item["children"].to<JsonArray>();
-      LibrarySummary childSummary = appendLibraryNode(children, info.path, depth + 1);
-      item["trackCount"] = childSummary.trackCount;
-      item["durationEstimateSec"] = childSummary.durationEstimateSec;
-      item["totalSize"] = childSummary.totalSize;
-      summary.trackCount += childSummary.trackCount;
-      summary.durationEstimateSec += childSummary.durationEstimateSec;
-      summary.totalSize += childSummary.totalSize;
-    } else {
-      JsonObject item = out.add<JsonObject>();
-      item["path"] = info.path;
-      item["type"] = "file";
-      item["trackCount"] = 1;
-      item["durationEstimateSec"] = estimateDurationSec(info.size);
-      item["totalSize"] = info.size;
-      summary.trackCount += 1;
-      summary.durationEstimateSec += estimateDurationSec(info.size);
-      summary.totalSize += info.size;
-    }
-  }
-
-  dir.close();
-  return summary;
-}
-
-bool WebAdmin::isAudioFile(const String& path) const {
-  String lower = path;
-  lower.toLowerCase();
-  return lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".flac") ||
-         lower.endsWith(".aac") || lower.endsWith(".m4a") || lower.endsWith(".ogg") ||
-         lower.endsWith(".opus");
-}
-
-uint32_t WebAdmin::estimateDurationSec(uint32_t sizeBytes) const {
-  return (sizeBytes * 8UL) / kEstimatedBitrateBitsPerSec;
-}
-
-String WebAdmin::normalizeUploadTarget(const String& rawPath) const {
-  String path = normalizeLibraryPath(rawPath);
-  if (path == "/") {
-    return "";
-  }
-  return path;
-}
-
-String WebAdmin::normalizeLibraryPath(const String& rawPath) const {
-  String path = rawPath;
-  path.trim();
-  path.replace('\\', '/');
-  if (path.isEmpty()) {
-    path = kLibraryRoot;
-  }
-  if (!path.startsWith("/")) {
-    path = "/" + path;
-  }
-  while (path.endsWith("/") && path.length() > 1) {
-    path.remove(path.length() - 1);
-  }
-  if (path.indexOf("..") >= 0) {
-    return "";
-  }
-  if (!(path == kLibraryRoot || path.startsWith(String(kLibraryRoot) + "/"))) {
-    return "";
-  }
-  return path;
-}
-
-String WebAdmin::sanitizeUploadFilename(const String& rawName) const {
-  String name = rawName;
-  name.replace('\\', '/');
-  const int slashIndex = name.lastIndexOf('/');
-  if (slashIndex >= 0) {
-    name = name.substring(slashIndex + 1);
-  }
-
-  String out;
-  out.reserve(name.length());
-  for (size_t index = 0; index < name.length(); ++index) {
-    const char c = name[index];
-    const bool allowed = isAlphaNumeric(c) || c == '.' || c == '_' || c == '-' || c == ' ';
-    out += allowed ? c : '_';
-  }
-  out.trim();
-  while (out.endsWith(".")) {
-    out.remove(out.length() - 1);
-  }
-  if (isReservedName(out)) {
-    return "";
-  }
-  return out;
-}
-
-String WebAdmin::sanitizeFolderName(const String& rawName) const {
-  String out;
-  out.reserve(rawName.length());
-  for (size_t index = 0; index < rawName.length(); ++index) {
-    const char c = rawName[index];
-    const bool allowed = isAlphaNumeric(c) || c == '_' || c == '-' || c == ' ';
-    out += allowed ? c : '_';
-  }
-  out.trim();
-  while (out.endsWith(".")) {
-    out.remove(out.length() - 1);
-  }
-  if (isReservedName(out)) {
-    return "";
-  }
-  return out;
-}
-
-bool WebAdmin::isReservedName(const String& name) const {
-  if (name.isEmpty()) {
-    return true;
-  }
-
-  const String trimmed = String(name);
-  if (trimmed == "." || trimmed == "..") {
-    return true;
-  }
-
-  String lower = trimmed;
-  lower.toLowerCase();
-  return lower == ".trash" || lower == "trash" || lower == "content";
-}
-
 bool WebAdmin::ensureDirectoryExists(const String& path) {
-  String normalized = normalizeUploadTarget(path);
+  String normalized = library_paths::normalizeLibraryPath(path);
   if (normalized.isEmpty()) {
     return false;
   }
@@ -1728,40 +1536,11 @@ bool WebAdmin::ensureDirectoryExists(const String& path) {
 }
 
 String WebAdmin::resolveUploadPath(const String& targetDir, const String& safeName, const String& conflictMode) const {
-  String basePath = targetDir;
-  if (!basePath.endsWith("/")) {
-    basePath += "/";
-  }
-  String fullPath = basePath + safeName;
-
-  if (!SD.exists(fullPath)) {
-    return fullPath;
-  }
-
-  if (conflictMode == "replace") {
-    return fullPath;
-  }
-
-  if (conflictMode == "reject") {
-    return "";
-  }
-
-  const int dotIndex = safeName.lastIndexOf('.');
-  const String stem = dotIndex > 0 ? safeName.substring(0, dotIndex) : safeName;
-  const String ext = dotIndex > 0 ? safeName.substring(dotIndex) : "";
-
-  for (uint16_t counter = 1; counter < 1000; ++counter) {
-    String candidate = basePath + stem + "-" + String(counter) + ext;
-    if (!SD.exists(candidate)) {
-      return candidate;
-    }
-  }
-
-  return "";
+  return library_paths::resolveConflict(targetDir, safeName, conflictMode, [](const String& path) { return SD.exists(path); });
 }
 
 bool WebAdmin::deletePathRecursive(const String& path) {
-  const String normalized = normalizeLibraryPath(path);
+  const String normalized = library_paths::normalizeLibraryPath(path);
   if (normalized.isEmpty()) {
     return false;
   }
@@ -1796,32 +1575,21 @@ bool WebAdmin::deletePathRecursive(const String& path) {
 }
 
 String WebAdmin::movePathToTrash(const String& path) {
-  const String normalized = normalizeLibraryPath(path);
-  if (normalized.isEmpty() || normalized == kTrashRoot || normalized.startsWith(String(kTrashRoot) + "/")) {
+  const String normalized = library_paths::normalizeLibraryPath(path);
+  library_paths::TrashTarget target;
+  if (!library_paths::trashTargetFor(normalized, target)) {
     logLine("web", "Corbeille: chemin refusé %s", path.c_str());
     return "";
   }
 
-  if (!ensureDirectoryExists(kTrashRoot)) {
-    logLine("web", "Corbeille: création de %s impossible", kTrashRoot);
+  if (!ensureDirectoryExists(target.dir)) {
+    logLine("web", "Corbeille: création de %s impossible", target.dir.c_str());
     return "";
   }
 
-  String relative = normalized.substring(String(kLibraryRoot).length());
-  if (relative.startsWith("/")) {
-    relative.remove(0, 1);
-  }
-  const int slashIndex = relative.lastIndexOf('/');
-  const String trashParent = slashIndex >= 0 ? String(kTrashRoot) + "/" + relative.substring(0, slashIndex) : String(kTrashRoot);
-  if (!ensureDirectoryExists(trashParent)) {
-    logLine("web", "Corbeille: création de %s impossible", trashParent.c_str());
-    return "";
-  }
-
-  const String baseName = slashIndex >= 0 ? relative.substring(slashIndex + 1) : relative;
-  const String trashedPath = resolveUploadPath(trashParent, baseName, "rename");
+  const String trashedPath = resolveUploadPath(target.dir, target.name, "rename");
   if (trashedPath.isEmpty()) {
-    logLine("web", "Corbeille: aucun nom libre pour %s dans %s", baseName.c_str(), trashParent.c_str());
+    logLine("web", "Corbeille: aucun nom libre pour %s dans %s", target.name.c_str(), target.dir.c_str());
     return "";
   }
 
@@ -1854,14 +1622,14 @@ bool WebAdmin::buildTreeAtPath(JsonArray& out, const String& rootPath, bool incl
       name = rootPath == "/" ? "/" + name : rootPath + "/" + name;
     }
 
-    if (!includeTrash && (name == kTrashRoot || name.startsWith(String(kTrashRoot) + "/"))) {
+    if (!includeTrash && library_paths::isInTrash(name)) {
       entry.close();
       entry = dir.openNextFile();
       continue;
     }
 
     const bool entryIsDirectory = entry.isDirectory();
-    if (entryIsDirectory || isAudioFile(name)) {
+    if (entryIsDirectory || library_paths::isAudioFile(name)) {
       SdEntryInfo info;
       info.path = name;
       info.isDirectory = entryIsDirectory;
@@ -1901,11 +1669,11 @@ bool WebAdmin::buildTreeAtPath(JsonArray& out, const String& rootPath, bool incl
       item["path"] = info.path;
       item["type"] = "file";
       item["trackCount"] = 1;
-      item["durationEstimateSec"] = estimateDurationSec(info.size);
+      item["durationEstimateSec"] = library_paths::estimateDurationSec(info.size);
       item["totalSize"] = info.size;
       if (summary != nullptr) {
         summary->trackCount += 1;
-        summary->durationEstimateSec += estimateDurationSec(info.size);
+        summary->durationEstimateSec += library_paths::estimateDurationSec(info.size);
         summary->totalSize += info.size;
       }
     }
@@ -1927,17 +1695,13 @@ String WebAdmin::renamePath(const String& sourcePath, const String& desiredName,
   const bool isDir = source.isDirectory();
   source.close();
 
-  String conflictMode = rawConflictMode;
-  conflictMode.toLowerCase();
-  if (conflictMode != "replace" && conflictMode != "reject" && conflictMode != "rename") {
-    conflictMode = "rename";
-  }
+  const String conflictMode = library_paths::normalizeConflictMode(rawConflictMode);
 
-  String safeName = isDir ? sanitizeFolderName(desiredName) : sanitizeUploadFilename(desiredName);
+  String safeName = isDir ? library_paths::sanitizeFolderName(desiredName) : library_paths::sanitizeFileName(desiredName);
   if (safeName.isEmpty()) {
     return "";
   }
-  if (!isDir && !isAudioFile(safeName)) {
+  if (!isDir && !library_paths::isAudioFile(safeName)) {
     return "";
   }
 
@@ -1971,20 +1735,6 @@ String WebAdmin::renamePath(const String& sourcePath, const String& desiredName,
   }
 
   return SD.rename(sourcePath, targetPath) ? targetPath : "";
-}
-
-String WebAdmin::originalPathFromTrash(const String& trashPath) const {
-  if (!(trashPath == kTrashRoot || trashPath.startsWith(String(kTrashRoot) + "/"))) {
-    return "";
-  }
-  String relative = trashPath.substring(String(kTrashRoot).length());
-  if (relative.isEmpty()) {
-    return "";
-  }
-  if (!relative.startsWith("/")) {
-    relative = "/" + relative;
-  }
-  return String(kLibraryRoot) + relative;
 }
 
 uint64_t WebAdmin::sdTotalBytes() const {

@@ -32,6 +32,7 @@ Le dépôt contient le firmware d'une boîte à histoires enfant basée sur ESP3
 - Le décodage audio tourne dans une tâche FreeRTOS dédiée sur le cœur 1, priorité 3 ([src/audio_service.cpp](src/audio_service.cpp)), au-dessus de `loop()` (même cœur, priorité 1) qui ne doit jamais appeler `Audio::loop()`. Ne pas la remettre sur le cœur 0: la pile Wi-Fi y prend la main par rafales et coupe le son pendant une connexion.
 - Toutes les méthodes publiques d'`AudioService` prennent un mutex récursif partagé avec la tâche audio. Toute nouvelle méthode qui touche `audio_` ou la playlist doit faire de même.
 - `WebAdmin::loop()` tourne aussi pendant la lecture. Les routes qui accèdent à la carte SD (bibliothèque, upload, renommage, corbeille…) doivent appeler `rejectIfBusy()` et répondre `503 busy_playing` pendant la lecture. Seules les routes légères (statut, réglages, volume, associations, verrouillage) restent servies.
+- Tout chemin ou nom reçu par une route web passe par `library_paths` (normalisation dans `/content`, noms nettoyés, corbeille) avant d'accéder à la carte SD; les décisions de reprise de lecture sont dans `playback_rules`.
 - Toute route `/api` s'enregistre avec `onApi()` (jamais `server_.on()` directement): `request_guard` refuse les requêtes adressées à un autre nom que la boîte (rebinding DNS, 403 `forbidden_host`) et, pour un POST, celles venues d'une autre origine (CSRF, 403 `forbidden_origin`) ou dont le corps n'est pas `application/json` (415 `json_required`). Une route hors `onApi()` doit appeler `rejectIfForeign()` elle-même (voir l'envoi de fichiers).
 - Les routes de gestion doivent appeler `rejectIfLocked()` (403 `locked`) avant tout le reste.
 - Éviter les écritures NVS en rafale: une écriture flash fige le cache des deux cœurs. Le volume est enregistré 1,5 s après le dernier changement (`kVolumeSaveDelayMs`).
@@ -65,12 +66,16 @@ Le dépôt contient le firmware d'une boîte à histoires enfant basée sur ESP3
 ## Ordre de priorité pour les prochaines tâches
 
 1. Implémenter le pont Home Assistant pour la V2.
-2. Étendre les tests sur ordinateur (`pio test -e native`) à toute nouvelle logique sans matériel.
+2. Étendre les tests sur ordinateur (`pio test -e native`) à toute nouvelle logique sans matériel. Reste à extraire de `main.cpp`, `network_service.cpp` et `led_controller.cpp`, dans de petits modules sans matériel (comme `library_paths` et `playback_rules`):
+   - volume: cran de molette borné aux limites, jauge LED en pourcentage de la plage (cas min = max);
+   - cartes: carte maîtresse, inconnue ou connue, signet enregistré au retrait, remis à zéro en fin d'histoire, reprise après réinsertion de la carte SD (`resumeAfterSd`): une machine à états qui décide, `main.cpp` n'exécutant que ses décisions;
+   - délai de reconnexion Wi-Fi (10 s doublé jusqu'à 60 s, remis à zéro une fois connecté), ordre des LEDs (`physicalIndex`, chenillard), `formatUid`;
+   - page web: logique pure de `web/app.js` (retrait ID3, nom réseau, noms sans accents, cartes suivies après un déplacement) avec `node --test`.
 
 ## Validation attendue
 
 - Compiler avec PlatformIO après toute modification C++ (`make firmware`), et construire l'image LittleFS après toute modification de `web/` (`make webfs`). Les versions de la plateforme et des bibliothèques sont figées dans `platformio.ini`: ne les monter qu'avec un test sur la boîte.
-- Lancer les tests sur ordinateur après toute modification de `id3_stripper`, `access_lock`, `config_store`, `network_names`, `factory_data`, `card_backup`, `request_guard`, `encoder_decoder` ou `app_types.h` (`pio test -e native`). `test/support/` remplace Arduino (`String`), la NVS, l'aléa et mbedtls: les compléter si un module testé utilise une nouvelle API.
+- Lancer les tests sur ordinateur après toute modification de `id3_stripper`, `access_lock`, `config_store`, `network_names`, `factory_data`, `card_backup`, `request_guard`, `encoder_decoder`, `library_paths`, `playback_rules` ou `app_types.h` (`pio test -e native`). `test/support/` remplace Arduino (`String`), la NVS, l'aléa et mbedtls: les compléter si un module testé utilise une nouvelle API.
 - Après toute modification de `hardware/tools/` ou des contours de `hardware/laser/`: `make test-cad`, puis `make cad` pour régénérer les DXF et les PDF des deux versions (la CI vérifie qu'ils sont à jour). Après une modification des cotes de la carte: `python3 hardware/tools/hermitx_board.py`.
 - Vérifier les endpoints HTTP modifiés, y compris en état verrouillé et pendant la lecture.
 - Tester au minimum les scénarios: carte connue, carte inconnue, retrait de carte, changement de volume (molette et web), verrouillage/déverrouillage.

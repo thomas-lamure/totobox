@@ -4,6 +4,11 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+### Firmware
+
+- Règles des chemins de la bibliothèque (`library_paths`) et décisions de reprise de lecture (`playback_rules`) extraites dans des modules testés sur ordinateur (29 nouveaux cas).
+- Le dossier `/content` lui-même ne peut plus être envoyé à la corbeille.
+
 ## 1.0.0
 
 Première publication.

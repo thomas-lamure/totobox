@@ -2,7 +2,8 @@
 #pragma once
 
 // Remplacement minimal d'Arduino pour les tests sur ordinateur (pio test -e native).
-// Ne couvre que ce qu'utilisent les modules testés (access_lock, config_store, app_types, request_guard, ArduinoJson).
+// Ne couvre que ce qu'utilisent les modules testés (access_lock, config_store, app_types, request_guard,
+// library_paths, playback_rules, ArduinoJson).
 
 #include <algorithm>
 #include <cctype>
@@ -17,6 +18,10 @@ class String {
   String(const char* text) : value_(text != nullptr ? text : "") {}
   String(const std::string& text) : value_(text) {}
   explicit String(char c) : value_(1, c) {}
+  explicit String(int value) : value_(std::to_string(value)) {}
+  explicit String(unsigned int value) : value_(std::to_string(value)) {}
+  explicit String(long value) : value_(std::to_string(value)) {}
+  explicit String(unsigned long value) : value_(std::to_string(value)) {}
 
   String& operator=(const char* text) {
     value_ = text != nullptr ? text : "";
@@ -80,6 +85,11 @@ class String {
     const size_t found = value_.find(text, from);
     return found == std::string::npos ? -1 : static_cast<int>(found);
   }
+  int lastIndexOf(char c) const {
+    const size_t found = value_.rfind(c);
+    return found == std::string::npos ? -1 : static_cast<int>(found);
+  }
+  void replace(char from, char to) { std::replace(value_.begin(), value_.end(), from, to); }
   String substring(size_t from) const { return from < value_.size() ? String(value_.substr(from)) : String(); }
   String substring(size_t from, size_t to) const {
     if (to > value_.size()) to = value_.size();
