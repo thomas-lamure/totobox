@@ -5,6 +5,7 @@
 
 #include <cstring>
 
+#include "led_layout.h"
 #include "logger.h"
 #include "totobox_config.h"
 
@@ -35,7 +36,7 @@ constexpr int8_t kChaseForwardStep = kStripReversed ? -1 : 1;
 // Position visible (0 = début de la bande vue de face) vers indice électrique.
 uint8_t physicalIndex(uint8_t visibleIndex)
 {
-  return kStripReversed ? totobox::kLedCount - 1 - visibleIndex : visibleIndex;
+  return led_layout::physicalIndex(visibleIndex, totobox::kLedCount, kStripReversed);
 }
 
 void fill_solid(CRGB *targetLeds, int numLeds, CRGB color)
@@ -169,12 +170,13 @@ void LedController::showChase(const CRGB &color, ChaseMode mode)
   fill_solid(leds_, totobox::kLedCount, dimColor);
   leds_[chaseIndex_] = color;
   show();
-  if (mode == ChaseMode::Forward) {
-    chaseDirection_ = kChaseForwardStep;
-  } else if (chaseIndex_ + chaseDirection_ < 0 || chaseIndex_ + chaseDirection_ >= totobox::kLedCount) {
-    chaseDirection_ = -chaseDirection_;
-  }
-  chaseIndex_ = (chaseIndex_ + totobox::kLedCount + chaseDirection_) % totobox::kLedCount;
+  led_layout::Chase chase;
+  chase.index = chaseIndex_;
+  chase.direction = chaseDirection_;
+  const led_layout::Chase next = led_layout::nextChase(chase, totobox::kLedCount, mode != ChaseMode::Forward,
+                                                       kChaseForwardStep);
+  chaseIndex_ = next.index;
+  chaseDirection_ = next.direction;
   lastChaseStepMs_ = now;
 }
 
@@ -227,11 +229,7 @@ void LedController::showOverlay() {
   }
 
   fill_solid(leds_, totobox::kLedCount, CRGB::Black);
-  // Arrondi au plus proche, et au moins une LED dès que la valeur n'est pas nulle.
-  uint8_t lit = (overlayPercent_ * totobox::kLedCount + 50) / 100;
-  if (overlayPercent_ > 0 && lit == 0) {
-    lit = 1;
-  }
+  const uint8_t lit = led_layout::litCount(overlayPercent_, totobox::kLedCount);
   for (uint8_t index = 0; index < lit; ++index) {
     leds_[physicalIndex(index)] = overlayColor_;
   }

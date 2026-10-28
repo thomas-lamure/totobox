@@ -6,14 +6,14 @@ PYTHON ?= python3
 LASER := hardware/laser
 TOOLS := hardware/tools
 
-.PHONY: help firmware webfs upload uploadfs monitor mock test test-native test-scripts test-cad cad check-cad
+.PHONY: help firmware webfs upload uploadfs monitor mock test test-native test-scripts test-web test-cad cad check-cad
 
 help:
 	@echo "make firmware    compile le firmware (pio run)"
 	@echo "make webfs       construit l'image LittleFS de la page web (pio run -t buildfs)"
 	@echo "make upload      téléverse le firmware, make uploadfs la page web, make monitor ouvre la console"
 	@echo "make mock        faux serveur de la boîte: page web sans matériel (http://localhost:8080)"
-	@echo "make test        tous les tests sur ordinateur (firmware, scripts, outils du boîtier)"
+	@echo "make test        tous les tests sur ordinateur (firmware, scripts, page web, outils du boîtier)"
 	@echo "make cad         régénère les DXF et les gabarits PDF depuis les contours"
 	@echo "make check-cad   vérifie que les DXF et PDF versionnés sont à jour"
 
@@ -35,13 +35,16 @@ monitor:
 mock:
 	node scripts/mock-server.mjs
 
-test: test-native test-scripts test-cad
+test: test-native test-scripts test-web test-cad
 
 test-native:
 	pio test -e native
 
 test-scripts:
 	$(PYTHON) -m unittest discover -s scripts -p "test_*.py"
+
+test-web:
+	node --test scripts/test_web_lib.mjs
 
 test-cad:
 	$(PYTHON) -m unittest discover -s $(TOOLS) -p "test_*.py"

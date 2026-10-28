@@ -2,7 +2,7 @@
 """Assemble la page web servie par la boîte à partir des sources de web/.
 
 Les sources restent séparées pour être lisibles et servies telles quelles par le faux serveur de développement
-(scripts/mock-server.mjs): index.html (structure), style.css, app.js et vendor/ (bibliothèques reprises telles quelles).
+(scripts/mock-server.mjs): index.html (structure), style.css, lib.js, app.js et vendor/ (bibliothèques reprises telles quelles).
 La boîte, elle, ne sert qu'un fichier: chaque `<link rel="stylesheet" href="…">` et `<script src="…"></script>`
 qui pointe vers un fichier local de web/ est remplacé par son contenu, dans une balise <style> ou <script>.
 

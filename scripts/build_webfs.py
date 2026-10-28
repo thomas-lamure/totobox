@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Prépare le contenu de l'image LittleFS (pio run -t buildfs / uploadfs).
 #
-# web/ reste la source éditée à la main (index.html, style.css, app.js, vendor/). Ce script assemble la page en
+# web/ reste la source éditée à la main (index.html, style.css, lib.js, app.js, vendor/). Ce script assemble la page en
 # un seul fichier (scripts/webpage.py: feuille de style et scripts intégrés), la compresse en gzip (~200 Ko ->
 # ~45 Ko) dans le dossier de build, et en fait le contenu de l'image: moins de flash occupée, une seule requête
 # et moins de temps à servir la page pendant la lecture. Le serveur web envoie le .gz avec l'en-tête

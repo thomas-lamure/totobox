@@ -8,6 +8,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 - Règles des chemins de la bibliothèque (`library_paths`) et décisions de reprise de lecture (`playback_rules`) extraites dans des modules testés sur ordinateur (29 nouveaux cas).
 - Le dossier `/content` lui-même ne peut plus être envoyé à la corbeille.
+- Suivi des cartes (`card_flow`), volume (`volume_rules`), LEDs (`led_layout`) et reconnexion Wi-Fi (`retry_delay`) extraits et testés sur ordinateur (24 nouveaux cas).
+- Carte remplacée par une autre en moins de 250 ms: l'histoire en cours est arrêtée et son signet enregistré avant de lire la nouvelle carte. Avant, le signet était perdu, et avec une carte maîtresse l'histoire continuait sans carte posée.
+
+### Page web
+
+- Fonctions pures de la page dans `web/lib.js`, testées par `make test-web` (`node --test`, 10 cas): échappement HTML, formats, noms réseau et de dossiers, retrait ID3, cartes qui suivent un fichier déplacé.
 
 ## 1.0.0
 

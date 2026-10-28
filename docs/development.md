@@ -20,7 +20,7 @@ La console affiche en première ligne la version du firmware et le commit compil
 
 ## Page web
 
-Les sources sont dans [web/](../web): `index.html` (structure), `style.css`, `app.js` et `vendor/nacl.min.js` (tweetnacl-js, repris tel quel). À la construction de l'image LittleFS, [scripts/build_webfs.py](../scripts/build_webfs.py) les assemble en un seul fichier ([scripts/webpage.py](../scripts/webpage.py): feuille de style et scripts intégrés), le compresse en gzip (~175 Ko → ~46 Ko) et y inscrit sa version (empreinte de la page): la boîte ne sert qu'un fichier, sans dépendance à Internet.
+Les sources sont dans [web/](../web): `index.html` (structure), `style.css`, `lib.js` (fonctions pures, testées par `make test-web`), `app.js` (le reste de la page) et `vendor/nacl.min.js` (tweetnacl-js, repris tel quel). Une fonction sans DOM ni réseau va dans `lib.js`, avec son test dans [scripts/test_web_lib.mjs](../scripts/test_web_lib.mjs). À la construction de l'image LittleFS, [scripts/build_webfs.py](../scripts/build_webfs.py) les assemble en un seul fichier ([scripts/webpage.py](../scripts/webpage.py): feuille de style et scripts intégrés), le compresse en gzip (~175 Ko → ~46 Ko) et y inscrit sa version (empreinte de la page): la boîte ne sert qu'un fichier, sans dépendance à Internet.
 
 Pour travailler sur la page sans la boîte:
 
@@ -38,11 +38,12 @@ Au premier démarrage d'une boîte sans données d'usine, le mot de passe du poi
 make test          # tout
 make test-native   # pio test -e native: modules du firmware sans matériel (Unity)
 make test-scripts  # scripts du dépôt: assemblage de la page (unittest)
+make test-web      # fonctions pures de la page, web/lib.js (node --test)
 make test-cad      # outils du boîtier (unittest)
 make check-cad     # DXF et PDF versionnés à jour avec leurs contours
 ```
 
-Les modules sans matériel (nettoyage ID3, verrouillage, sérialisation de la configuration et du catalogue, noms réseau, données d'usine, sauvegarde des cartes, protection des requêtes, décodage de l'encodeur, chemins de la bibliothèque, décisions de reprise de lecture) sont compilés pour l'ordinateur: [test/support/](../test/support) fournit des versions simulées d'Arduino (`String`), de la NVS (`Preferences`), de l'aléa et du SHA-256 de mbedtls. Une nouvelle logique sans matériel doit y être testée: la placer dans un petit module sans dépendance matérielle (comme [src/library_paths.h](../src/library_paths.h) ou [src/playback_rules.h](../src/playback_rules.h), extraits de `web_admin.cpp` et `audio_service.cpp`), l'ajouter à `build_src_filter` dans [platformio.ini](../platformio.ini) et compléter `test/support/` si elle utilise une API Arduino qui n'y est pas encore.
+Les modules sans matériel (nettoyage ID3, verrouillage, sérialisation de la configuration et du catalogue, noms réseau, données d'usine, sauvegarde des cartes, protection des requêtes, décodage de l'encodeur, chemins de la bibliothèque, décisions de reprise de lecture, suivi des cartes et signets, volume et jauge, ordre des LEDs, délai de reconnexion Wi-Fi) sont compilés pour l'ordinateur: [test/support/](../test/support) fournit des versions simulées d'Arduino (`String`), de la NVS (`Preferences`), de l'aléa et du SHA-256 de mbedtls. Une nouvelle logique sans matériel doit y être testée: la placer dans un petit module sans dépendance matérielle (comme [src/library_paths.h](../src/library_paths.h) ou [src/playback_rules.h](../src/playback_rules.h), extraits de `web_admin.cpp` et `audio_service.cpp`), l'ajouter à `build_src_filter` dans [platformio.ini](../platformio.ini) et compléter `test/support/` si elle utilise une API Arduino qui n'y est pas encore.
 
 Le reste (audio, NFC, LEDs, réseau, veille) se valide sur la boîte. Scénarios minimum avant une contribution qui y touche: carte connue, carte inconnue, retrait de carte, volume (molette et page), verrouillage et déverrouillage, retrait et réinsertion de la carte SD.
 
@@ -54,7 +55,7 @@ Le reste (audio, NFC, LEDs, réseau, veille) se valide sur la boîte. Scénarios
 ├── include/
 │   ├── totobox_config.h  # broches, délais, constantes
 │   └── version.h         # version du firmware
-├── web/                  # interface web: index.html, style.css, app.js, vendor/ (assemblés pour LittleFS)
+├── web/                  # interface web: index.html, style.css, lib.js, app.js, vendor/ (assemblés pour LittleFS)
 ├── test/                 # tests Unity sur ordinateur (pio test -e native)
 │   └── support/          # Arduino, NVS, aléa et SHA-256 simulés
 ├── scripts/

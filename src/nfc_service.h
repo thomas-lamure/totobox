@@ -36,7 +36,6 @@ class NFCService {
   bool setSearchRetries(uint8_t retries);
   void resync();
   bool irqLow() const;
-  String formatUid(const uint8_t* uid, uint8_t length) const;
 
   SPIClass spiNfc_;
   Adafruit_PN532 nfc_;

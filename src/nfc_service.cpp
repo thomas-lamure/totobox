@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "nfc_service.h"
 
+#include "card_flow.h"
+
 #include "logger.h"
 #include "totobox_config.h"
 
@@ -180,7 +182,7 @@ NFCService::Event NFCService::readResult() {
   uint8_t uid[kUidScratchSize] = {0};
   uint8_t length = 0;
   if (nfc_.readDetectedPassiveTargetID(uid, &length) && length > 0 && length <= kMaxUidLength) {
-    lastUid_ = formatUid(uid, length);
+    lastUid_ = card_flow::formatUid(uid, length);
     tagPresent_ = true;
     consecutiveFailures_ = 0;
     return Event::CardPresent;
@@ -246,16 +248,4 @@ void NFCService::resync() {
 
 bool NFCService::irqLow() const {
   return digitalRead(totobox::kPn532Irq) == LOW;
-}
-
-String NFCService::formatUid(const uint8_t* uid, uint8_t length) const {
-  String result;
-  for (uint8_t index = 0; index < length; ++index) {
-    if (uid[index] < 0x10) {
-      result += '0';
-    }
-    result += String(uid[index], HEX);
-  }
-  result.toUpperCase();
-  return result;
 }

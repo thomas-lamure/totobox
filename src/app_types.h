@@ -129,6 +129,8 @@ struct RuntimeState {
   uint16_t activeTrackCount = 0;
   // Dernière carte inconnue posée, conservée après retrait pour pouvoir l'associer depuis l'interface web.
   String lastUnknownCardUid;
+  // Histoire interrompue par le retrait de la carte SD: reprise à la réinsertion si sa carte NFC est toujours posée.
+  bool resumeAfterSd = false;
 };
 
 inline const char* playbackModeToString(PlaybackMode mode) {

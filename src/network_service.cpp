@@ -6,6 +6,7 @@
 #include <algorithm>
 
 #include "logger.h"
+#include "retry_delay.h"
 #include "totobox_config.h"
 
 namespace {
@@ -144,7 +145,7 @@ void NetworkService::tickStation(uint32_t now) {
           static_cast<unsigned long>((now - lostAtMs_) / 1000), lastDisconnectReason);
   WiFi.disconnect();
   WiFi.begin(config_->wifiSsid.c_str(), config_->wifiPassword.c_str());
-  retryDelayMs_ = std::min<uint32_t>(retryDelayMs_ * 2, totobox::kWifiRetryMaxMs);
+  retryDelayMs_ = retry_delay::next(retryDelayMs_, totobox::kWifiRetryMaxMs);
   nextRetryAtMs_ = now + retryDelayMs_;
 }
 

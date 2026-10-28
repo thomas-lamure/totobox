@@ -35,6 +35,8 @@ flowchart LR
 - `access_lock`: verrouillage des réglages (cartes maîtresses, code de secours haché, limitation des essais).
 - `Id3Stripper`: retire tags ID3 et pochettes des MP3 pendant l'écriture des uploads.
 - `library_paths`: règles des chemins de la bibliothèque (tout reste dans `/content`, noms nettoyés, doublons, corbeille), appliquées par `WebAdmin` avant tout accès à la carte SD.
+- `card_flow`: suivi des cartes NFC (carte maîtresse, inconnue ou associée, retrait confirmé après 250 ms, carte remplacée par une autre, signets, reprise au retour de la carte SD); `main.cpp` exécute ses décisions (lecture, LEDs, NVS).
+- `volume_rules`, `led_layout`, `retry_delay`: cran de molette et jauge, ordre des LEDs et chenillard, attente entre deux reconnexions Wi-Fi.
 - `playback_rules`: décisions de lecture d'`AudioService` (reprise par octet ou en secondes selon le format, position comptée depuis le signet, ordre des pistes, niveau de volume de la lib).
 - `logger`: `logLine()` écrit chaque ligne d'un bloc sous mutex, sans jamais bloquer la tâche audio.
 
