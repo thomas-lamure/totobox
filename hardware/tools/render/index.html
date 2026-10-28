@@ -1,0 +1,341 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Atelier de rendu du boîtier: voir hardware/tools/render/README.md. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Atelier de rendu TotoBox</title>
+<style>
+  html, body { margin: 0; background: #222; color: #ddd; font: 13px system-ui; }
+  #ui { position: fixed; top: 8px; left: 8px; z-index: 2; background: rgba(0,0,0,.7); padding: 8px; border-radius: 6px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  #ui button { font: inherit; padding: 4px 8px; }
+  canvas { display: block; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="ui">chargement…</div>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+
+const W = 1600, H = 1000;
+const ui = document.getElementById("ui");
+
+// ---------- Renderer et scène ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf1ece4);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.55;
+
+// ---------- Textures procédurales ----------
+function noise2(seed) {
+  // bruit de valeur simple et déterministe
+  const rnd = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453; return s - Math.floor(s); };
+  const smooth = (t) => t * t * (3 - 2 * t);
+  return (x, y) => {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const a = rnd(xi, yi), b = rnd(xi + 1, yi), c = rnd(xi, yi + 1), d = rnd(xi + 1, yi + 1);
+    const u = smooth(xf), v = smooth(yf);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  };
+}
+
+// Contreplaqué de bouleau: fond crème, veinage fin et allongé (le long de u), légères marbrures.
+function birchTexture(seed, base = [222, 196, 152]) {
+  const size = 1024, cv = document.createElement("canvas");
+  cv.width = cv.height = size;
+  const ctx = cv.getContext("2d"), img = ctx.createImageData(size, size), n = noise2(seed), m = noise2(seed + 9);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const warp = n(x / 260, y / 70) * 3.5 + m(x / 90, y / 20) * 0.8;
+    const grain = Math.sin((y / size) * 210 + warp);
+    const ring = Math.pow(Math.abs(grain), 10);
+    const fine = (n(x / 3, y / 0.9) - 0.5) * 0.05;
+    const fleck = n(x / 5, y / 1.2) > 0.9 ? 0.035 : 0;
+    const blotch = (m(x / 320, y / 180) - 0.5) * 0.07;
+    const streak = (m(x / 40, y / 3) - 0.5) * 0.06;
+    const k = 1 - ring * 0.09 - fleck + blotch + fine + streak;
+    const i = (y * size + x) * 4;
+    img.data[i] = base[0] * k; img.data[i + 1] = base[1] * k; img.data[i + 2] = base[2] * (k - ring * 0.04); img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+  return t;
+}
+
+// Chant d'une découpe laser: brun brûlé, plus sombre au milieu, avec les plis du contreplaqué.
+function laserEdgeTexture() {
+  const size = 256, cv = document.createElement("canvas");
+  cv.width = cv.height = size;
+  const ctx = cv.getContext("2d"), img = ctx.createImageData(size, size), n = noise2(3);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const ply = Math.abs(Math.sin((y / size) * Math.PI * 3)) ;   // 3 plis sur l'épaisseur
+    const k = 0.55 + ply * 0.25 + (n(x / 8, y / 30) - 0.5) * 0.15;
+    const i = (y * size + x) * 4;
+    img.data[i] = 120 * k; img.data[i + 1] = 72 * k; img.data[i + 2] = 40 * k; img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+const woodFace = birchTexture(1, [226, 196, 150]);
+const woodFaceAlt = birchTexture(5, [219, 186, 140]);
+const edgeTex = laserEdgeTexture();
+const tableTex = birchTexture(11, [208, 178, 140]);
+
+// ---------- Contreplaqué: faces texturées et chants brûlés ----------
+// Coordonnées de texture par projection sur le plan de chaque face (pas d'UV dans l'export Onshape).
+// thin: axe de l'épaisseur de la pièce (3 mm); long: axe le plus long (sens du veinage).
+function plywood(mesh, faceTex) {
+  const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+  g.computeBoundingBox();
+  const size = new THREE.Vector3(); g.boundingBox.getSize(size);
+  const dims = [size.x, size.y, size.z];
+  const thin = dims.indexOf(Math.min(...dims));
+  const pos = g.attributes.position, count = pos.count;
+  const uv = new Float32Array(count * 2);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), nrm = new THREE.Vector3();
+  const faceIdx = [], edgeIdx = [];
+  const scaleFace = 1 / 0.12, scaleEdge = 1 / 0.003;   // une texture pour 12 cm de face, 3 mm d'épaisseur de chant
+  for (let t = 0; t < count; t += 3) {
+    a.fromBufferAttribute(pos, t); b.fromBufferAttribute(pos, t + 1); c.fromBufferAttribute(pos, t + 2);
+    nrm.subVectors(c, b).cross(new THREE.Vector3().subVectors(a, b)).normalize();
+    const comp = [Math.abs(nrm.x), Math.abs(nrm.y), Math.abs(nrm.z)];
+    const axis = comp.indexOf(Math.max(...comp));
+    const isFace = axis === thin;
+    // axes du plan de projection: grain le long de l'axe le plus long restant
+    const others = [0, 1, 2].filter((k) => k !== axis);
+    if (dims[others[0]] < dims[others[1]]) others.reverse();
+    for (let k = 0; k < 3; k++) {
+      const v = [pos.getX(t + k), pos.getY(t + k), pos.getZ(t + k)];
+      if (isFace) { uv[(t + k) * 2] = v[others[0]] * scaleFace; uv[(t + k) * 2 + 1] = v[others[1]] * scaleFace; }
+      else { const along = others.find((o) => o !== thin) ?? others[0]; uv[(t + k) * 2] = v[along] * scaleEdge * 0.05; uv[(t + k) * 2 + 1] = (v[thin] - g.boundingBox.min.getComponent(thin)) / dims[thin]; }
+    }
+    (isFace ? faceIdx : edgeIdx).push(t, t + 1, t + 2);
+  }
+  g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  // regroupe les triangles: faces puis chants
+  const order = faceIdx.concat(edgeIdx);
+  const ng = new THREE.BufferGeometry();
+  for (const name of ["position", "normal", "uv"]) {
+    const src = g.attributes[name]; if (!src) continue;
+    const it = src.itemSize, arr = new Float32Array(order.length * it);
+    order.forEach((vi, j) => { for (let q = 0; q < it; q++) arr[j * it + q] = src.array[vi * it + q]; });
+    ng.setAttribute(name, new THREE.BufferAttribute(arr, it));
+  }
+  if (!ng.attributes.normal) ng.computeVertexNormals();
+  ng.addGroup(0, faceIdx.length, 0);
+  ng.addGroup(faceIdx.length, edgeIdx.length, 1);
+  mesh.geometry = ng;
+  mesh.material = [
+    new THREE.MeshPhysicalMaterial({ map: faceTex, roughness: 0.72, clearcoat: 0.08, clearcoatRoughness: 0.6 }),
+    new THREE.MeshStandardMaterial({ map: edgeTex, roughness: 0.9 }),
+  ];
+}
+
+// ---------- Chargement du modèle ----------
+const model = new THREE.Group();
+model.rotation.x = -Math.PI / 2;   // Onshape: Z vers le haut
+scene.add(model);
+const parts = {};
+let ledMeshes = [];
+
+// Modèle exporté d'Onshape (voir README.md): pas versionné, à réexporter après une modification du boîtier.
+const MODEL = new URLSearchParams(location.search).get("model") || "model/totobox-castle.gltf";
+let gltf;
+try {
+  gltf = await new GLTFLoader().loadAsync(MODEL);
+} catch (error) {
+  ui.textContent = `Modèle introuvable (${MODEL}): exporte-le depuis Onshape, voir hardware/tools/render/README.md.`;
+  throw error;
+}
+gltf.scene.traverse((o) => {
+  if (!o.isMesh) return;
+  o.castShadow = o.receiveShadow = true;
+  // GLTFLoader remplace les espaces des noms par "_": noms d'Onshape rétablis.
+  const name = ((o.parent && o.parent.name) || o.name).replace(/_/g, " ");
+  parts[name] = parts[name] || [];
+  parts[name].push(o);
+  const m = o.material;
+  if (name.startsWith("Box")) {
+    plywood(o, /Top|Front/.test(name) ? woodFace : woodFaceAlt);
+  } else if (name === "Encodeur (bouton)") {
+    o.material = new THREE.MeshStandardMaterial({ color: 0x1c1c1f, roughness: 0.6 });
+  } else if (/Broche|broche|filetage|Entretoise|canon|ecrou|arbre|USB|blindage|Quartz|Support microSD/.test(name)) {
+    o.material = new THREE.MeshStandardMaterial({ color: m.color, metalness: 0.85, roughness: 0.32 });
+  } else if (/^LED/.test(name)) {
+    o.material = new THREE.MeshStandardMaterial({ color: 0x1a3a22, emissive: 0x2bdc5a, emissiveIntensity: 1.3, roughness: 0.4 });
+    ledMeshes.push(o);
+  } else if (/PCB|circuit/.test(name)) {
+    o.material = new THREE.MeshPhysicalMaterial({ color: m.color, roughness: 0.38, clearcoat: 0.5, clearcoatRoughness: 0.3 });
+  } else {
+    o.material = new THREE.MeshStandardMaterial({ color: m.color, roughness: 0.55, metalness: 0.05 });
+  }
+});
+model.add(gltf.scene);
+
+// ---------- Cartes en bois (non modélisées dans Onshape) ----------
+// 85,6 x 54 mm, deux épaisseurs de 3 mm; dessin de couverture sur la face avant.
+function cardCover(title, hue) {
+  const cv = document.createElement("canvas"); cv.width = 540; cv.height = 856;
+  const ctx = cv.getContext("2d");
+  const bg = birchTexture(20 + hue % 7).image; ctx.drawImage(bg, 0, 0, 540, 856);
+  // illustration imprimée dans la moitié haute (le bas de la carte est caché dans la fente)
+  ctx.save(); ctx.beginPath(); ctx.roundRect(40, 40, 460, 330, 26); ctx.clip();
+  const sky = ctx.createLinearGradient(0, 40, 0, 370); sky.addColorStop(0, `hsl(${hue} 60% 72%)`); sky.addColorStop(1, `hsl(${hue + 20} 55% 86%)`);
+  ctx.fillStyle = sky; ctx.fillRect(40, 40, 460, 330);
+  ctx.fillStyle = `hsl(${hue + 150} 45% 52%)`;
+  ctx.beginPath(); ctx.ellipse(200, 400, 260, 120, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = `hsl(${hue + 120} 40% 42%)`;
+  ctx.beginPath(); ctx.ellipse(420, 410, 200, 110, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#fff6d8"; ctx.beginPath(); ctx.arc(370, 120, 38, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = "#4a3422"; ctx.font = "bold 46px Georgia, serif"; ctx.textAlign = "center";
+  ctx.fillText(title, 270, 440);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+function woodCard(title, hue) {
+  // Repère Onshape de la carte: x épaisseur (6 mm), y largeur (54 mm), z hauteur (85,6 mm); dessin sur la face +x.
+  const card = new THREE.Group();
+  const side = new THREE.MeshStandardMaterial({ map: edgeTex, roughness: 0.9 });
+  const face = new THREE.MeshPhysicalMaterial({ map: woodFaceAlt, roughness: 0.72 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.054, 0.0856), [face, face, side, side, side, side]);
+  body.castShadow = body.receiveShadow = true;
+  card.add(body);
+  const cover = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.054, 0.0856),
+    new THREE.MeshPhysicalMaterial({ map: cardCover(title, hue), roughness: 0.6, clearcoat: 0.15, clearcoatRoughness: 0.4 })
+  );
+  // axes du plan: largeur -> y, hauteur -> z, normale -> +x
+  cover.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0)));
+  cover.position.x = 0.00301;
+  cover.receiveShadow = true;
+  card.add(cover);
+  return card;
+}
+const cardInSlot = woodCard("Le Petit Prince", 205);
+// Dans la fente: contre la cloison (x -10..-4 mm), centrée en y, posée sur le fond (z -4 mm).
+cardInSlot.position.set(-0.0072, 0.031, -0.004 + 0.0428);
+model.add(cardInSlot);
+
+// Cartes à plat devant la boîte, dessin vers le haut, haut de la carte vers l'arrière (titre lisible de face).
+function lyingCard(title, hue, x, y, z, spin) {
+  const holder = new THREE.Group();
+  const card = woodCard(title, hue);
+  card.rotation.y = -Math.PI / 2;   // couchée, face dessinée vers le haut
+  holder.add(card);
+  holder.rotation.z = -Math.PI / 2 + spin;
+  holder.position.set(x, y, z + 0.003);
+  return holder;
+}
+const looseCards = [
+  lyingCard("Comptines", 25, -0.005, -0.085, -0.007, 0.18),
+  lyingCard("Berceuses", 285, 0.060, -0.090, -0.007, -0.08),
+  lyingCard("Contes", 140, 0.125, -0.082, -0.007, -0.22),
+];
+looseCards.forEach((c) => model.add(c));
+
+// ---------- Plateau et lumières ----------
+const table = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshStandardMaterial({ color: 0xe8e2d8, roughness: 0.95 }));
+scene.fog = new THREE.Fog(0xf1ece4, 0.55, 1.6);
+table.rotation.x = -Math.PI / 2;
+table.position.y = -0.007;
+table.receiveShadow = true;
+scene.add(table);
+
+const sun = new THREE.DirectionalLight(0xfff1dd, 2.4);
+sun.position.set(-0.35, 0.55, 0.3);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.camera.left = -0.25; sun.shadow.camera.right = 0.25; sun.shadow.camera.top = 0.25; sun.shadow.camera.bottom = -0.25;
+sun.shadow.camera.near = 0.1; sun.shadow.camera.far = 2;
+sun.shadow.radius = 6; sun.shadow.bias = -0.0002; sun.shadow.normalBias = 0.0004;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xdfe8ff, 0.6);
+fill.position.set(0.5, 0.3, 0.5);
+scene.add(fill);
+// lueur verte des LEDs sur le plateau
+const ledGlow = new THREE.PointLight(0x40ff70, 0.02, 0.15, 2);
+ledGlow.position.set(0.05, 0.012, 0.012);
+scene.add(ledGlow);
+
+// ---------- Caméra et rendu ----------
+const camera = new THREE.PerspectiveCamera(30, W / H, 0.01, 5);
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const ao = new GTAOPass(scene, camera, W, H);
+ao.updateGtaoMaterial({ radius: 0.012, distanceExponent: 1.5, thickness: 0.004, scale: 1.0, samples: 16 });
+ao.blendIntensity = 0.9;
+composer.addPass(ao);
+composer.addPass(new OutputPass());
+
+// Vues (repère three.js: x à droite de la boîte, y vers le haut, z vers l'avant de la boîte = -y Onshape)
+const VIEWS = {
+  hero: { pos: [0.24, 0.14, 0.26], target: [0.047, 0.03, -0.031], fov: 26, show: { top: true, loose: false, card: true } },
+  cards: { pos: [-0.12, 0.17, 0.34], target: [0.055, 0.005, 0.015], fov: 30, show: { top: true, loose: true, card: true } },
+  inside: { pos: [0.13, 0.30, 0.20], target: [0.045, 0.012, -0.031], fov: 28, show: { top: false, loose: false, card: true } },
+};
+function applyView(name) {
+  const v = VIEWS[name];
+  camera.position.set(...v.pos); camera.fov = v.fov; camera.updateProjectionMatrix(); camera.lookAt(...v.target);
+  // Dessus retiré: le haut-parleur, collé dessous, part avec lui.
+  for (const [n, list] of Object.entries(parts)) {
+    if (n === "Box Top" || n === "Box Internal Led Cover" || n.startsWith("Haut-parleur")) list.forEach((m) => (m.visible = v.show.top));
+  }
+  looseCards.forEach((c) => (c.visible = v.show.loose));
+  cardInSlot.visible = v.show.card;
+}
+window.renderView = async (name, save) => {
+  applyView(name);
+  composer.render();
+  if (!save) return "rendu " + name;
+  const blob = await new Promise((r) => renderer.domElement.toBlob(r, "image/jpeg", 0.92));
+  const res = await fetch("/save?name=" + encodeURIComponent(save), { method: "POST", body: blob });
+  return await res.text();
+};
+window.__parts = parts;
+window.THREE = THREE; window.scene = scene; window.camera = camera; window.VIEWS = VIEWS; window.model = model;
+window.cardInSlot = cardInSlot; window.looseCards = looseCards; window.sun = sun;
+await window.renderView("hero");
+// Une vue s'affiche au clic; « Enregistrer » écrit l'image dans out/ (serveur local, server.mjs).
+ui.textContent = "";
+let current = "hero";
+for (const name of Object.keys(VIEWS)) {
+  const button = document.createElement("button");
+  button.textContent = name;
+  button.onclick = async () => { current = name; await window.renderView(name); };
+  ui.appendChild(button);
+}
+const save = document.createElement("button");
+save.textContent = "Enregistrer";
+save.onclick = async () => { save.textContent = "…"; const r = JSON.parse(await window.renderView(current, `rendu-${current}.jpg`)); save.textContent = r.ok ? `Enregistré: out/${r.name}` : "Échec"; };
+ui.appendChild(save);
+</script>
+</body>
+</html>

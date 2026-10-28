@@ -9,5 +9,9 @@ dist/
 __pycache__/
 .claude/
 
+# Atelier de rendu: modèle exporté d'Onshape et images produites (hardware/tools/render/README.md)
+hardware/tools/render/model/
+hardware/tools/render/out/
+
 # Fichiers de production (mots de passe des étiquettes): voir docs/production.md
 production/

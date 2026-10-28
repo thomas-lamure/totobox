@@ -99,7 +99,7 @@ Le reste (audio, NFC, LEDs, réseau, veille) se valide sur la boîte. Scénarios
 ├── hardware/             # boîtier et câblage (CC BY-SA 4.0)
 │   ├── onshape/          # Features Onshape (FeatureScript) des composants et du boîtier
 │   ├── laser/            # contours, DXF de découpe et gabarits PDF A4
-│   └── tools/            # générateurs DXF, PDF et modèle de la carte (Python), et leurs tests
+│   └── tools/            # générateurs DXF, PDF et modèle de la carte (Python), et leurs tests; render/: rendus three.js
 ├── docs/                 # documentation (utilisation, API, architecture, production) et logo
 ├── LICENSES/             # textes des licences (REUSE.toml dit laquelle s'applique à quel fichier)
 ├── partitions.csv        # table de partitions (dont la partition d'usine mfg)

@@ -7,7 +7,7 @@ Tout ce qu'il faut pour fabriquer une TotoBox: composants, câblage, boîtier en
 | [electronics.md](electronics.md) | carte, broches, câblage de l'encodeur (le seul à câbler) |
 | [onshape/](onshape) | Features Onshape (FeatureScript) des composants et du boîtier, notes de conception |
 | [laser/](laser) | contours, DXF de découpe et gabarits PDF A4 à l'échelle 1:1 |
-| [tools/](tools) | générateurs des DXF, des PDF et du modèle de la carte, et leurs tests |
+| [tools/](tools) | générateurs des DXF, des PDF et du modèle de la carte, et leurs tests; [atelier de rendu](tools/render/README.md) des illustrations |
 
 ## Nomenclature
 

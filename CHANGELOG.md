@@ -4,6 +4,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+### Développement
+
+- Atelier de rendu du boîtier (`hardware/tools/render/`, `make render`): rendus three.js du modèle Onshape, base des illustrations du README.
+
 ## 1.2.1 - 2026-10-28
 
 ### Firmware
