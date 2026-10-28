@@ -4,6 +4,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.2.0 - 2026-10-28
+
 ### Firmware
 
 - Mise à jour automatique (réglage `autoUpdate`, désactivé par défaut): une fois par jour, la boîte cherche une nouvelle version sur GitHub et l'installe, connectée au Wi-Fi de la maison et après une minute sans histoire ni carte posée, réveil compris. Heure par NTP, date de la dernière recherche gardée en NVS.
