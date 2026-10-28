@@ -10,6 +10,11 @@
 
 A do-it-yourself story and music box for young children: the child slides a card into the box and the story starts; pull the card out, it stops, and it resumes at the same spot next time. No screen, no account, no cloud: everything plays from a microSD card, and LEDs show what the box is doing.
 
+<p align="center">
+  <img src="docs/images/totobox-boite.jpeg" alt="The TotoBox, finger-joint version: plywood box with a wooden card in the slot, green LEDs lit and a knob on the side" width="720">
+</p>
+<p align="center"><em>AI-generated illustration based on a render of the 3D model (finger-joint version), until photos of real builds are available.</em></p>
+
 This repository holds the firmware (ESP32-S3, HermitX CardReader board), the parents' web settings page, and the 3 mm plywood enclosure (Onshape models, laser-cut files and printable 1:1 templates).
 
 **The project is written in French**: code comments, documentation, web interface and LED/serial messages. This page is the English entry point; the detailed guides are in French and translate well with any browser translator.

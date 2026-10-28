@@ -10,6 +10,11 @@
 
 Boîte à histoires et à musiques pour enfant, à fabriquer soi-même: l'enfant glisse une carte dans la fente de la boîte, l'histoire démarre; il la retire, elle s'arrête et reprendra au même endroit. Pas d'écran, pas de compte, pas de cloud: tout est lu depuis une carte microSD, et des LEDs disent ce que fait la boîte.
 
+<p align="center">
+  <img src="docs/images/totobox-boite.jpeg" alt="La TotoBox, version à créneaux: boîte en contreplaqué avec une carte en bois dans la fente, LEDs vertes allumées et molette sur le côté" width="720">
+</p>
+<p align="center"><em>Illustration générée par IA à partir d'un rendu du modèle 3D (version à créneaux), en attendant des photos de boîtes réalisées.</em></p>
+
 Le dépôt contient le firmware (ESP32-S3, carte HermitX CardReader), l'interface web de réglage pour les parents, et le boîtier en contreplaqué (modèles Onshape, plans de découpe laser ou gabarits à imprimer).
 
 ## Fonctionnalités
@@ -37,6 +42,11 @@ Le dépôt contient le firmware (ESP32-S3, carte HermitX CardReader), l'interfac
    Sans PlatformIO: écrire en 0x0 l'image `totobox-X.Y.Z-complet.bin` de la [dernière version publiée](https://github.com/thomas-lamure/totobox/releases/latest), avec `esptool.py` ou depuis le navigateur ([esptool-js](https://espressif.github.io/esptool-js/)). Les notes de chaque version expliquent aussi la mise à jour en gardant les réglages.
 
 5. **Mise en route**: carte microSD en FAT32, puis se connecter au point d'accès `TotoBox-XXXX` avec le téléphone. Voir le [guide d'utilisation](docs/usage.md).
+
+<p align="center">
+  <img src="docs/images/totobox-cartes.jpeg" alt="La boîte et trois cartes en bois illustrées posées devant elle" width="720">
+</p>
+<p align="center"><em>Les cartes en bois (illustrations d'exemple). Illustration générée par IA à partir d'un rendu du modèle 3D.</em></p>
 
 ## Documentation
 
