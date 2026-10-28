@@ -96,6 +96,14 @@ Réglages > « Sauvegarde des cartes »: les associations (nom, contenu, signet)
 
 Les cartes maîtresses et le code de secours ne sont pas sauvegardés.
 
+## Mise à jour
+
+À son ouverture, puis une fois par jour tant qu'elle reste ouverte, la page regarde sur GitHub si une nouvelle version de la boîte est publiée (le téléphone doit avoir accès à Internet; rien n'est envoyé, la page lit seulement la liste des versions). Un bandeau « Nouvelle version de la boîte » l'annonce (« Plus tard » le masque jusqu'à la version suivante); la mise à jour reste aussi proposée dans les réglages.
+
+« Voir » affiche les nouveautés, puis « Installer »: la boîte télécharge elle-même la nouvelle version, vérifie son empreinte, l'installe et redémarre (environ une minute, LEDs cyan pendant le téléchargement). Les histoires, les cartes, les signets et les réglages sont conservés.
+
+Conditions: réglages déverrouillés, aucune histoire en cours, et la boîte connectée au Wi-Fi de la maison (en point d'accès seul, elle n'a pas accès à Internet). En cas d'échec (coupure réseau, fichier abîmé), rien n'est changé: la boîte garde sa version et peut réessayer. Une version qui ne peut pas s'installer depuis la page s'installe par USB (voir le lien vers GitHub dans la fenêtre).
+
 ## Remise à zéro
 
 Les cartes associées sont d'abord sauvegardées sur la carte SD, puis la boîte efface toute sa configuration (réglages, Wi-Fi, verrouillage, cartes et signets) et redémarre en point d'accès `TotoBox-XXXX` avec le mot de passe de l'étiquette, déverrouillée. Les fichiers de la carte SD sont conservés.

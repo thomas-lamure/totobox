@@ -24,7 +24,7 @@ const WEB = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 const nacl = createRequire(import.meta.url)(join(WEB, "vendor", "nacl.min.js"));
 const PORT = Number(process.argv[2] || 8080);
 // Même version que le firmware (include/version.h).
-const FIRMWARE_VERSION =
+let firmwareVersion =
   readFileSync(join(WEB, "..", "include", "version.h"), "utf8").match(/kFirmwareVersion = "([^"]+)"/)?.[1] || "?";
 
 const LIBRARY_ROOT = "/content";
@@ -172,6 +172,33 @@ function playlist(mediaPath) {
   return children(mediaPath).filter((path) => files.get(path).type === "file" && AUDIO.test(path)).sort();
 }
 
+// ---------- Mise à jour en ligne simulée (src/update_service.cpp) ----------
+// Page puis firmware téléchargés en quelques secondes, redémarrage (la boîte ne répond plus), nouvelle version.
+
+const update = { phase: "idle", version: "", startedAt: 0, page: 0, firmware: 0, error: "" };
+let rebootingUntil = 0;
+const UPDATE_PAGE_MS = 2000;
+const UPDATE_FIRMWARE_MS = 5000;
+const UPDATE_RESTART_MS = 3000;
+
+function updateStatus() {
+  const elapsed = Date.now() - update.startedAt;
+  if (update.phase === "page" && elapsed >= UPDATE_PAGE_MS) update.phase = "firmware";
+  if (update.phase === "firmware" && elapsed >= UPDATE_PAGE_MS + UPDATE_FIRMWARE_MS) {
+    update.phase = "restarting";
+    setTimeout(() => {
+      rebootingUntil = Date.now() + UPDATE_RESTART_MS;
+      firmwareVersion = update.version;
+      Object.assign(update, { phase: "idle", page: 0, firmware: 0 });
+      runtime.unlocked = false;  // redémarrage: verrouillée si le verrouillage est actif
+    }, 1500);
+  }
+  const part = (start, length, total) => Math.max(0, Math.min(total, Math.round(((elapsed - start) / length) * total)));
+  const done = update.phase === "page" ? part(0, UPDATE_PAGE_MS, update.page) : update.phase === "firmware" ? part(UPDATE_PAGE_MS, UPDATE_FIRMWARE_MS, update.firmware) : 0;
+  const total = update.phase === "page" ? update.page : update.phase === "firmware" ? update.firmware : 0;
+  return { phase: update.phase, version: update.version, done, total, error: update.error };
+}
+
 // ---------- Cartes NFC simulées ----------
 
 function placeCard(uid) {
@@ -252,9 +279,11 @@ function status() {
   const total = runtime.sdState === "ready" ? SD_TOTAL : 0;
   return {
     state: runtime.state,
-    firmwareVersion: FIRMWARE_VERSION,
+    firmwareVersion,
     firmwareBuild: "simulée",
     uiVersion: "", // page servie depuis les sources: pas de version à comparer
+    updateRepo: "thomas-lamure/totobox",
+    update: updateStatus(),
     setupDone: config.setupDone,
     boxKey: Buffer.from(boxKeys.publicKey).toString("base64"),
     challenge: challenge.toString("base64"),
@@ -483,6 +512,17 @@ const routes = [
     setSdState("ready");
     return [200, { ok: true }];
   }],
+  ["POST", "/api/update", true, true, (body) => {
+    const parse = (v) => (/^(\d+)\.(\d+)\.(\d+)$/.exec(v || "") || []).slice(1).map(Number);
+    const [next, now] = [parse(body.version), parse(firmwareVersion)];
+    if (next.length !== 3) return [409, { ok: false, error: "invalid_version" }];
+    const newer = next[0] - now[0] || next[1] - now[1] || next[2] - now[2];
+    if (newer <= 0) return [409, { ok: false, error: "not_newer" }];
+    if (!config.wifiSsid) return [409, { ok: false, error: "no_internet" }];
+    if (["page", "firmware", "restarting"].includes(update.phase)) return [409, { ok: false, error: "update_running" }];
+    Object.assign(update, { phase: "page", version: body.version, startedAt: Date.now(), page: body.page?.size || 47000, firmware: body.firmware?.size || 1500000, error: "" });
+    return [200, { ok: true }];
+  }],
   ["POST", "/api/setup/complete", true, false, () => {
     config.setupDone = true;
     return [200, { ok: true }];
@@ -574,6 +614,8 @@ async function readBody(request) {
 }
 
 createServer(async (request, response) => {
+  // Redémarrage après une mise à jour: la boîte ne répond plus pendant quelques secondes.
+  if (Date.now() < rebootingUntil) return request.socket.destroy();
   const url = new URL(request.url, "http://localhost");
   const raw = await readBody(request);
   try {

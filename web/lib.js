@@ -157,3 +157,64 @@ function retargetMediaPaths(list, oldPath, newPath) {
   }
   return changed;
 }
+
+// ---------- Mise à jour en ligne ----------
+
+// Versions X.Y.Z: négatif si a < b, 0 si égales, positif si a > b; null si l'une n'est pas au format.
+function compareVersions(a, b) {
+  const parse = (value) => {
+    const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(value || "").trim());
+    return match ? match.slice(1).map(Number) : null;
+  };
+  const left = parse(a);
+  const right = parse(b);
+  if (!left || !right) return null;
+  for (let i = 0; i < 3; i++) {
+    if (left[i] !== right[i]) return left[i] - right[i];
+  }
+  return 0;
+}
+
+const UPDATE_BLOCK = /<!--\s*totobox-update\s+(\{[\s\S]*?\})\s*-->/;
+
+// Dernière version publiée (réponse de l'API GitHub /releases/latest) -> { version, url, notes, update }.
+// `update` décrit ce que la boîte doit télécharger (POST /api/update): fichiers de la Release (adresse, taille)
+// et empreintes du bloc « totobox-update » des notes; null si la Release ne permet pas la mise à jour en ligne.
+function parseRelease(release) {
+  const version = String((release && release.tag_name) || "").replace(/^v/, "");
+  if (compareVersions(version, version) === null) return null;
+  const body = String(release.body || "");
+  const notes = body.replace(UPDATE_BLOCK, "").split(/^### Installer/m)[0].trim();
+  let update = null;
+  const match = UPDATE_BLOCK.exec(body);
+  if (match) {
+    try {
+      const info = JSON.parse(match[1]);
+      const assets = release.assets || [];
+      const asset = (file) => {
+        const found = file && assets.find((item) => item.name === file.name && item.size === file.size);
+        return found && /^[0-9a-f]{64}$/i.test(file.sha256) ? { url: found.browser_download_url, sha256: file.sha256, size: file.size } : null;
+      };
+      const firmware = asset(info.firmware);
+      const page = asset(info.page);
+      if (info.version === version && info.uiVersion && firmware && page) {
+        update = { version, uiVersion: info.uiVersion, firmware, page };
+      }
+    } catch (error) {
+      update = null;
+    }
+  }
+  return { version, url: release.html_url || "", notes, update };
+}
+
+// Notes de version (Markdown du CHANGELOG) en texte simple: titres sans "#", puces "•", sans `code` ni **gras**.
+function plainNotes(markdown) {
+  return String(markdown || "")
+    .split("\n")
+    .map((line) => line.replace(/^#{1,6}\s+/, "").replace(/^(\s*)[-*]\s+/, "$1• "))
+    .join("\n")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}

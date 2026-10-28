@@ -75,6 +75,17 @@
           </div>
         </div>
 
+        <div id="firmware-banner" class="banner tone-blue" hidden>
+          <div>
+            <strong>Nouvelle version de la boîte : <span id="firmware-banner-version"></span></strong>
+            <div class="small">Améliorations et corrections, à installer depuis cette page.</div>
+          </div>
+          <div class="actions">
+            <button id="firmware-banner-open" class="btn primary" type="button">Voir</button>
+            <button id="firmware-banner-dismiss" class="btn ghost" type="button">Plus tard</button>
+          </div>
+        </div>
+
         <div id="unknown-banner" class="banner tone-amber" hidden>
           <div>
             <strong>Nouvelle carte détectée</strong>
@@ -443,6 +454,7 @@
           <div class="stack">
             <div class="group-title">Boîte</div>
             <dl id="device-info" class="kv"></dl>
+            <button id="firmware-open" class="btn" type="button" hidden></button>
           </div>
 
           <div class="stack">
@@ -591,6 +603,29 @@
         <div class="sheet-body">
           <input id="move-search" data-enter="none" type="search" placeholder="Rechercher un dossier" />
           <div id="move-folders" class="list"></div>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="firmware-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2>Version <span id="firmware-version"></span></h2>
+          <button class="icon-btn" value="cancel" aria-label="Fermer"><svg><use href="#i-close" /></svg></button>
+        </div>
+        <div class="sheet-body stack">
+          <p class="small muted">Version installée : <span id="firmware-current"></span>. <a id="firmware-link" target="_blank" rel="noopener">Voir sur GitHub</a></p>
+          <div id="firmware-notes" class="release-notes small"></div>
+          <p id="firmware-hint" class="small muted" hidden></p>
+          <div id="firmware-progress" class="stack" hidden>
+            <div class="muted" id="firmware-progress-label"></div>
+            <div class="progress"><div id="firmware-progress-bar" style="width: 0%"></div></div>
+          </div>
+          <p id="firmware-error" class="small" style="color: var(--red)" hidden></p>
+        </div>
+        <div class="sheet-foot">
+          <button class="btn" value="cancel">Fermer</button>
+          <button id="firmware-install" class="btn primary" type="button">Installer</button>
         </div>
       </form>
     </dialog>

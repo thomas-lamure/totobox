@@ -6,7 +6,7 @@ PYTHON ?= python3
 LASER := hardware/laser
 TOOLS := hardware/tools
 
-.PHONY: help firmware webfs upload uploadfs monitor mock test test-native test-scripts test-web test-cad cad check-cad
+.PHONY: help firmware webfs upload uploadfs monitor mock release dist test test-native test-scripts test-web test-cad cad check-cad
 
 help:
 	@echo "make firmware    compile le firmware (pio run)"
@@ -16,6 +16,8 @@ help:
 	@echo "make test        tous les tests sur ordinateur (firmware, scripts, page web, outils du boîtier)"
 	@echo "make cad         régénère les DXF et les gabarits PDF depuis les contours"
 	@echo "make check-cad   vérifie que les DXF et PDF versionnés sont à jour"
+	@echo "make release VERSION=X.Y.Z   version, CHANGELOG, commit et étiquette (puis git push --follow-tags)"
+	@echo "make dist        fichiers d'une Release dans dist/ (images à flasher, découpe)"
 
 firmware:
 	pio run
@@ -31,6 +33,14 @@ uploadfs:
 
 monitor:
 	pio device monitor
+
+release:
+	@test -n "$(VERSION)" || (echo "usage: make release VERSION=X.Y.Z" && exit 1)
+	$(PYTHON) scripts/release.py prepare $(VERSION)
+
+dist: firmware webfs
+	pio run -t merged
+	$(PYTHON) scripts/release.py dist
 
 mock:
 	node scripts/mock-server.mjs

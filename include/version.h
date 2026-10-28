@@ -2,8 +2,8 @@
 #pragma once
 
 // Version du firmware: renvoyée par /api/status, affichée dans les réglages et au démarrage dans la console.
-// kFirmwareVersion suit CHANGELOG.md (à monter à chaque publication); TOTOBOX_BUILD est le commit compilé,
-// écrit par scripts/build_version.py.
+// kFirmwareVersion suit CHANGELOG.md et n'est modifié que par make release (scripts/release.py);
+// TOTOBOX_BUILD est le commit compilé, écrit par scripts/build_version.py.
 #include "build_info.h"
 
 namespace totobox {

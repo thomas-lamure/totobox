@@ -77,6 +77,12 @@ constexpr uint32_t kMdnsAnnounceMs = 60000;
 // Nom réseau: annoncé en mDNS (http://totobox.local) et donné au routeur via DHCP.
 constexpr char kHostname[] = "totobox";
 
+// Dépôt GitHub des versions publiées: la page y cherche les nouvelles versions, la boîte n'accepte que ses
+// fichiers (update_rules). Un fork qui publie ses propres versions remplace ce nom.
+constexpr char kUpdateRepo[] = "thomas-lamure/totobox";
+// Taille maximale de la page web téléchargée (index.html.gz): la partition LittleFS en garde deux copies.
+constexpr uint32_t kUpdateMaxPageBytes = 80 * 1024;
+
 // Point d'accès de secours: nom "TotoBox-" + fin de l'adresse MAC, mot de passe tiré au hasard au premier
 // démarrage (ConfigStore::ensureAccessPointDefaults). Anciennes valeurs fixes, remplacées une fois au démarrage.
 constexpr char kApSsidPrefix[] = "TotoBox-";

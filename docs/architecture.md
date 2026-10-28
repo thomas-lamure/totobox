@@ -34,6 +34,7 @@ flowchart LR
 - `WebAdmin`: sert la page (LittleFS) et l'API JSON; une fois le réseau prêt, le portail captif (DNS) en point d'accès et l'annonce mDNS `totobox.local`.
 - `access_lock`: verrouillage des réglages (cartes maîtresses, code de secours haché, limitation des essais).
 - `Id3Stripper`: retire tags ID3 et pochettes des MP3 pendant l'écriture des uploads.
+- `UpdateService`: mise à jour en ligne demandée par la page (téléchargement HTTPS depuis les Releases GitHub dans une tâche du cœur 0, empreintes vérifiées, partition OTA inactive, puis redémarrage); `update_rules` décide de ce qui est accepté (dépôt officiel, version plus récente, tailles, empreintes).
 - `library_paths`: règles des chemins de la bibliothèque (tout reste dans `/content`, noms nettoyés, doublons, corbeille), appliquées par `WebAdmin` avant tout accès à la carte SD.
 - `card_flow`: suivi des cartes NFC (carte maîtresse, inconnue ou associée, retrait confirmé après 250 ms, carte remplacée par une autre, signets, reprise au retour de la carte SD); `main.cpp` exécute ses décisions (lecture, LEDs, NVS).
 - `volume_rules`, `led_layout`, `retry_delay`: cran de molette et jauge, ordre des LEDs et chenillard, attente entre deux reconnexions Wi-Fi.

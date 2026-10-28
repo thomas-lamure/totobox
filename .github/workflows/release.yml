@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Publication d'une version: à l'arrivée d'une étiquette vX.Y.Z (make release VERSION=X.Y.Z, puis
+# git push --follow-tags), vérifie qu'elle correspond à include/version.h et à CHANGELOG.md, compile, teste et
+# crée la Release GitHub avec les notes du CHANGELOG et les fichiers de dist/ (scripts/release.py dist).
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.platformio
+          key: pio-${{ hashFiles('platformio.ini') }}
+      - run: pip install platformio
+      - name: Version cohérente avec l'étiquette
+        run: python3 scripts/release.py check "${GITHUB_REF_NAME#v}"
+      - run: make test-native test-scripts test-cad
+      - run: make dist
+      - name: Release GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          python3 scripts/release.py notes "$version" > notes.md
+          cat >> notes.md <<'NOTES'
+
+          ### Installer
+
+          - Première installation, sans PlatformIO: `totobox-…-complet.bin` à écrire en 0x0 (`esptool.py --chip esp32s3 write_flash 0x0 totobox-…-complet.bin`, ou depuis le navigateur avec https://espressif.github.io/esptool-js/). Efface les réglages et les cartes associées de la boîte, pas sa carte SD ni son mot de passe d'usine.
+          - Mise à jour en gardant les réglages: `esptool.py --chip esp32s3 write_flash 0x10000 totobox-…-firmware.bin 0x3D0000 totobox-…-page-web.bin`.
+          - Boîtier: `totobox-…-decoupe.zip` (DXF et gabarits PDF A4 des deux versions).
+          NOTES
+          # Bloc invisible lu par la page de la boîte pour la mise à jour en ligne (empreintes des fichiers).
+          printf '\n%s\n' "$(python3 scripts/release.py update-block)" >> notes.md
+          gh release create "$GITHUB_REF_NAME" dist/* --title "TotoBox $version" --notes-file notes.md --verify-tag

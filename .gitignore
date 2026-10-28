@@ -1,5 +1,6 @@
-# Construction PlatformIO
+# Construction PlatformIO et fichiers d'une Release (make dist)
 .pio/
+dist/
 
 # Fichiers propres à chaque poste (VS Code régénère launch.json avec des chemins absolus)
 .vscode/*

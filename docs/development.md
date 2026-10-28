@@ -18,11 +18,35 @@ make monitor       # pio device monitor: console série (115200 bauds)
 
 La console affiche en première ligne la version du firmware et le commit compilé (`TotoBox 1.0.0 (0e098db)`, `-dirty` si des fichiers étaient modifiés), aussi visibles dans Réglages > « Firmware » et dans `/api/status`. La version suit le [versionnage sémantique](https://semver.org/lang/fr/) et [CHANGELOG.md](../CHANGELOG.md).
 
-Publier une version:
+## Publier une version
+
+Au fil des modifications, chaque changement visible ajoute une ligne à la section « Non publié » de [CHANGELOG.md](../CHANGELOG.md). Pour publier:
 
 1. choisir le numéro: correctif (1.0.**1**: corrections, tests, remaniement sans effet visible), mineure (1.**1**.0: nouvelle fonction, nouvelle route ou nouveau champ compatibles), majeure (**2**.0.0: API, format des réglages ou des cartes, câblage incompatibles);
-2. le reporter dans [include/version.h](../include/version.h), et renommer la section « Non publié » de [CHANGELOG.md](../CHANGELOG.md) en `## X.Y.Z - AAAA-MM-JJ` (en ouvrir une nouvelle, vide, au-dessus);
-3. commiter, puis étiqueter le commit: `git tag -a vX.Y.Z -m "TotoBox X.Y.Z"` et `git push --follow-tags`.
+2. sur `main`, dépôt propre:
+
+   ```bash
+   make release VERSION=1.1.0     # python3 scripts/release.py prepare 1.1.0 (--dry-run pour voir sans rien changer)
+   git push --follow-tags
+   ```
+
+   [scripts/release.py](../scripts/release.py) vérifie que le numéro est plus grand que l'actuel et que « Non publié » n'est pas vide, met le numéro dans [include/version.h](../include/version.h), renomme la section en `## 1.1.0 - date` (et en rouvre une vide), commite « Release 1.1.0 » et étiquette `v1.1.0`;
+3. l'étiquette déclenche [.github/workflows/release.yml](../.github/workflows/release.yml): vérification de la version, tests, compilation, puis Release GitHub avec les notes du CHANGELOG et les fichiers de `make dist`:
+   - `totobox-X.Y.Z-complet.bin`: image unique à écrire en 0x0 (première installation sans PlatformIO; efface les réglages et les cartes, pas la carte SD ni la partition d'usine), produite par la cible PlatformIO `merged` ([scripts/build_merged.py](../scripts/build_merged.py));
+   - `totobox-X.Y.Z-firmware.bin` (0x10000) et `totobox-X.Y.Z-page-web.bin` (0x3D0000): mise à jour en gardant les réglages;
+   - `totobox-X.Y.Z-page.html.gz`: la page seule, pour la mise à jour en ligne; les notes de version se terminent par un commentaire invisible (`scripts/release.py update-block`) qui donne à la page les empreintes à faire vérifier par la boîte (voir [api.md](api.md#mise-à-jour-en-ligne));
+   - `totobox-X.Y.Z-decoupe.zip`: DXF et gabarits PDF du boîtier; `SHA256SUMS.txt`.
+
+Une version publiée ainsi est proposée aux boîtes par leur page (bandeau « Nouvelle version de la boîte »), qui s'installe en ligne. Les versions antérieures à la mise à jour en ligne (1.0.x) s'installent une fois par USB.
+
+### Autorités racines
+
+La boîte vérifie le certificat de GitHub avec les autorités racines de Mozilla, intégrées au firmware ([src/certs/x509_crt_bundle.bin](../src/certs/x509_crt_bundle.bin), MPL-2.0). À régénérer de temps en temps (une autorité retirée ou ajoutée par Mozilla, un changement d'autorité chez GitHub), puis publier une version:
+
+```bash
+curl -o cacert.pem https://curl.se/ca/cacert.pem
+python3 scripts/gen_ca_bundle.py cacert.pem src/certs/x509_crt_bundle.bin
+```
 
 ## Page web
 
@@ -43,10 +67,11 @@ Au premier démarrage d'une boîte sans données d'usine, le mot de passe du poi
 ```bash
 make test          # tout
 make test-native   # pio test -e native: modules du firmware sans matériel (Unity)
-make test-scripts  # scripts du dépôt: assemblage de la page (unittest)
+make test-scripts  # scripts du dépôt: assemblage de la page, publication des versions (unittest)
 make test-web      # fonctions pures de la page, web/lib.js (node --test)
 make test-cad      # outils du boîtier (unittest)
 make check-cad     # DXF et PDF versionnés à jour avec leurs contours
+make dist          # fichiers d'une Release dans dist/ (voir « Publier une version »)
 ```
 
 Les modules sans matériel (nettoyage ID3, verrouillage, sérialisation de la configuration et du catalogue, noms réseau, données d'usine, sauvegarde des cartes, protection des requêtes, décodage de l'encodeur, chemins de la bibliothèque, décisions de reprise de lecture, suivi des cartes et signets, volume et jauge, ordre des LEDs, délai de reconnexion Wi-Fi) sont compilés pour l'ordinateur: [test/support/](../test/support) fournit des versions simulées d'Arduino (`String`), de la NVS (`Preferences`), de l'aléa et du SHA-256 de mbedtls. Une nouvelle logique sans matériel doit y être testée: la placer dans un petit module sans dépendance matérielle (comme [src/library_paths.h](../src/library_paths.h) ou [src/playback_rules.h](../src/playback_rules.h), extraits de `web_admin.cpp` et `audio_service.cpp`), l'ajouter à `build_src_filter` dans [platformio.ini](../platformio.ini) et compléter `test/support/` si elle utilise une API Arduino qui n'y est pas encore.

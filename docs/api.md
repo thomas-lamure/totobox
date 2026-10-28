@@ -31,6 +31,7 @@ Erreurs communes: `403 locked` (réglages verrouillés), `503 busy_playing` (acc
 | `POST /api/cards/restore` | non | non | remplace les cartes par celles de la sauvegarde (cartes maîtresses ignorées) |
 | `POST /api/setup/complete` | non | oui | assistant de première connexion terminé (ou remis à plus tard) |
 | `POST /api/factory-reset` | non | non | `{confirm:"EFFACER", savedAt}`: sauvegarde les cartes sur la SD, efface la configuration et redémarre; renvoie `apSsid`, `backupSaved` |
+| `POST /api/update` | non | non | `{version, uiVersion, firmware: {url, sha256, size}, page: {url, sha256, size}}`: télécharge et installe une version publiée, puis redémarre (voir « Mise à jour en ligne ») |
 | `POST /api/sd/format` | non | — | `{confirm:"FORMATER"}`: formate en FAT32 une carte illisible (refusé si elle est lisible) |
 
 `GET /api/status` renvoie notamment:
@@ -43,7 +44,8 @@ Erreurs communes: `403 locked` (réglages verrouillés), `503 busy_playing` (acc
 - `wifiMode`, `wifiIp`, `hostname`, `networkAttempt` (résultat du dernier changement de Wi-Fi);
 - `setupDone` (faux: la page ouvre l'assistant de première connexion);
 - `uiVersion` (version de la page dans LittleFS: une page plus ancienne propose de se recharger);
-- `boxKey` et `challenge` (canal chiffré des secrets, voir plus bas).
+- `boxKey` et `challenge` (canal chiffré des secrets, voir plus bas);
+- `updateRepo` (dépôt GitHub des versions, `propriétaire/nom`) et `update` (mise à jour en ligne: `phase` = `idle`, `page`, `firmware`, `restarting` ou `failed`, `version`, `done` et `total` en octets du fichier en cours, `error`).
 
 Les créations et renommages refusent les noms réservés ou ambigus comme `.`, `..`, `.trash`, `trash` et `content`.
 
@@ -55,6 +57,18 @@ Une page web malveillante ouverte sur un appareil du réseau local ne peut pas p
 - toute modification venue d'une autre origine (en-têtes `Origin`, `Sec-Fetch-Site`) est refusée (`403 forbidden_origin`), de même qu'un corps qui n'est pas en `application/json` (`415 json_required`).
 
 Les scripts restent possibles: `curl -H "Content-Type: application/json" -d '{"volume":40}' http://totobox.local/api/volume`.
+
+## Mise à jour en ligne
+
+La page cherche la dernière version sur l'API GitHub (`https://api.github.com/repos/<updateRepo>/releases/latest`, qui autorise les pages d'autres origines). Les notes de chaque version contiennent un commentaire HTML invisible, `<!-- totobox-update {...} -->`, écrit par `scripts/release.py update-block`, qui donne la version de la page, la taille et l'empreinte SHA-256 des fichiers `totobox-X.Y.Z-firmware.bin` et `totobox-X.Y.Z-page.html.gz`; la page y ajoute leurs adresses de téléchargement et l'envoie à `POST /api/update`.
+
+GitHub ne sert pas ces fichiers aux pages d'une autre origine: la boîte les télécharge elle-même ([src/update_service.h](../src/update_service.h)), en vérifiant le certificat du serveur avec les autorités racines de Mozilla. Elle n'accepte ([src/update_rules.h](../src/update_rules.h)) que les fichiers des Releases du dépôt `updateRepo`, d'une version plus récente que la sienne, aux tailles plausibles, et vérifie leur empreinte avant de les installer:
+
+1. la page est écrite à côté de l'actuelle dans LittleFS;
+2. le firmware est écrit dans la partition OTA inactive (`app0`/`app1`): un échec ou une coupure de courant laisse l'ancien démarrer;
+3. ensuite seulement, la page remplace l'ancienne, la nouvelle partition devient celle du démarrage, et la boîte redémarre.
+
+Erreurs (`409`): `no_internet` (pas connectée au Wi-Fi de la maison), `not_newer`, `invalid_url`, `invalid_hash`, `invalid_size`, `invalid_version`, `invalid_ui_version`, `update_running`. Pendant le téléchargement, `update.error` peut valoir `download_failed`, `download_incomplete`, `hash_mismatch`, `invalid_image`, `no_space` ou `write_failed`.
 
 ## Secrets chiffrés
 

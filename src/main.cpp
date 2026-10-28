@@ -18,6 +18,7 @@
 #include "network_service.h"
 #include "power_manager.h"
 #include "nfc_service.h"
+#include "update_service.h"
 #include "totobox_config.h"
 #include "version.h"
 #include "volume_knob.h"
@@ -38,6 +39,7 @@ NFCService nfc;
 AudioService audio;
 WebAdmin* webAdmin = nullptr;
 NetworkService network;
+UpdateService updater;
 PowerManager power;
 
 CardBinding* findBindingByUid(const String& uid) {
@@ -363,6 +365,9 @@ void setup() {
     return runtime.sdReady;
   });
   webAdmin->begin();
+  // Après le montage de LittleFS par l'interface web (la mise à jour y remplace la page).
+  updater.begin();
+  webAdmin->setUpdateService(&updater);
 
   // Le délai avant la mise en veille part de la fin du démarrage.
   power.noteActivity(runtime);
@@ -380,11 +385,21 @@ void loop() {
     }
   }
 
+  // Mise à jour en ligne installée: redémarrage sur le nouveau firmware.
+  if (updater.restartDue()) {
+    audio.stop();
+    ESP.restart();
+  }
+  runtime.updating = updater.busy();
+
   syncSdState();
   handleVolume();
   saveVolumeIfIdle();
   updateVolumeOverlay();
-  pollNfc();
+  // Pendant une mise à jour, les cartes posées sont ignorées (pas de lecture pendant l'écriture de la flash).
+  if (!runtime.updating) {
+    pollNfc();
+  }
 
   // Carte inconnue toujours posée qui vient d'être associée depuis l'interface web: on lance la lecture.
   if (card_flow::shouldPlayNewlyBound(runtime, bindings)) {
@@ -398,7 +413,7 @@ void loop() {
   runtime.activeTrackCount = audio.trackCount();
   runtime.activePositionMs = audio.currentPositionMs();
   runtime.audioPlaying = audio.isPlaying();
-  if (runtime.audioPlaying) {
+  if (runtime.audioPlaying || runtime.updating) {
     power.noteActivity(runtime);
   } else if (power.isIdle(runtime)) {
     goToSleep();

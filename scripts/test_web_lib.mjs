@@ -12,7 +12,7 @@ import vm from "node:vm";
 const NAMES = [
   "LIBRARY_ROOT", "HOSTNAME_PATTERN", "esc", "baseName", "relPath", "prettyName", "fmtClock", "fmtDuration",
   "fmtBytes", "plural", "isAudioPath", "parentDir", "safeFolderName", "canMoveInto", "allFolders",
-  "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths",
+  "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths", "compareVersions", "parseRelease", "plainNotes",
 ];
 const source = readFileSync(new URL("../web/lib.js", import.meta.url), "utf8");
 const lib = vm.runInNewContext(`${source}\n;({ ${NAMES.join(", ")} })`, {});
@@ -117,4 +117,63 @@ test("fichier sans tag ou non MP3 envoyé tel quel", async () => {
   assert.equal(await lib.stripId3(wav), wav);
   const tiny = new File([new Uint8Array([0x49, 0x44, 0x33])], "a.mp3");
   assert.equal(await lib.stripId3(tiny), tiny);
+});
+
+test("versions comparées nombre par nombre", () => {
+  assert.ok(lib.compareVersions("1.0.10", "1.0.9") > 0);
+  assert.ok(lib.compareVersions("v1.1.0", "1.0.99") > 0);
+  assert.equal(lib.compareVersions("1.0.1", "1.0.1"), 0);
+  assert.ok(lib.compareVersions("1.0.1", "2.0.0") < 0);
+  assert.equal(lib.compareVersions("1.0", "1.0.0"), null);
+  assert.equal(lib.compareVersions(undefined, "1.0.0"), null);
+});
+
+const HASH = "8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4";
+const DOWNLOAD = "https://github.com/thomas-lamure/totobox/releases/download/v1.1.0/";
+
+function release(block) {
+  return {
+    tag_name: "v1.1.0",
+    html_url: "https://github.com/thomas-lamure/totobox/releases/tag/v1.1.0",
+    body: `### Firmware\n\n- Nouveauté.\n\n### Installer\n\n- esptool…\n\n${block}`,
+    assets: [
+      { name: "totobox-1.1.0-firmware.bin", size: 1500000, browser_download_url: DOWNLOAD + "totobox-1.1.0-firmware.bin" },
+      { name: "totobox-1.1.0-page.html.gz", size: 47000, browser_download_url: DOWNLOAD + "totobox-1.1.0-page.html.gz" },
+    ],
+  };
+}
+
+const BLOCK = `<!-- totobox-update {"version":"1.1.0","uiVersion":"8291aeae5293","firmware":{"name":"totobox-1.1.0-firmware.bin","size":1500000,"sha256":"${HASH}"},"page":{"name":"totobox-1.1.0-page.html.gz","size":47000,"sha256":"${HASH}"}} -->`;
+
+test("la Release donne de quoi demander la mise à jour à la boîte", () => {
+  const parsed = lib.parseRelease(release(BLOCK));
+  assert.equal(parsed.version, "1.1.0");
+  assert.equal(parsed.notes, "### Firmware\n\n- Nouveauté.");  // sans le mode d'emploi ni le bloc
+  assert.deepEqual(JSON.parse(JSON.stringify(parsed.update)), {
+    version: "1.1.0",
+    uiVersion: "8291aeae5293",
+    firmware: { url: DOWNLOAD + "totobox-1.1.0-firmware.bin", sha256: HASH, size: 1500000 },
+    page: { url: DOWNLOAD + "totobox-1.1.0-page.html.gz", sha256: HASH, size: 47000 },
+  });
+});
+
+test("Release sans mise à jour en ligne possible", () => {
+  // Ancienne Release (sans bloc), fichier manquant ou de taille différente, bloc d'une autre version, bloc illisible.
+  assert.equal(lib.parseRelease(release("")).update, null);
+  const missing = release(BLOCK);
+  missing.assets.pop();
+  assert.equal(lib.parseRelease(missing).update, null);
+  const resized = release(BLOCK);
+  resized.assets[0].size = 1;
+  assert.equal(lib.parseRelease(resized).update, null);
+  assert.equal(lib.parseRelease(release(BLOCK.replace('"version":"1.1.0"', '"version":"1.0.9"'))).update, null);
+  assert.equal(lib.parseRelease(release(BLOCK.replace(HASH, "abc"))).update, null);
+  assert.equal(lib.parseRelease(release("<!-- totobox-update {pas du json} -->")).update, null);
+  assert.equal(lib.parseRelease({ tag_name: "nightly" }), null);
+  assert.equal(lib.parseRelease(null), null);
+});
+
+test("notes de version lisibles sans rendu Markdown", () => {
+  assert.equal(lib.plainNotes("### Firmware\n\n- Carte `card_flow` **testée**.\n  - détail\n\n\n\n## Page"), "Firmware\n\n• Carte card_flow testée.\n  • détail\n\nPage");
+  assert.equal(lib.plainNotes(undefined), "");
 });

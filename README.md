@@ -19,6 +19,7 @@ Le dépôt contient le firmware (ESP32-S3, carte HermitX CardReader), l'interfac
 - **Interface web pour le téléphone**: associer les cartes, envoyer et ranger les fichiers, régler le Wi-Fi et les limites. Assistant de première connexion, portail captif quand la boîte crée son propre point d'accès.
 - **Verrouillage parental**: cartes maîtresses et code de secours, appliqué par la boîte elle-même.
 - **Autonome et hors ligne**: le Wi-Fi ne sert qu'aux réglages; veille profonde au bout de 5 min, réveil en posant une carte.
+- **Mise à jour depuis la page**: une nouvelle version publiée est annoncée et s'installe en un clic, la boîte la télécharge et la vérifie elle-même.
 - **Robuste**: carte SD retirée à chaud, carte exFAT détectée et formatable, secrets chiffrés entre la page et la boîte, protection contre les requêtes d'autres sites.
 
 ## Fabriquer une TotoBox
@@ -32,6 +33,8 @@ Le dépôt contient le firmware (ESP32-S3, carte HermitX CardReader), l'interfac
    pio run -t upload      # firmware
    pio run -t uploadfs    # interface web
    ```
+
+   Sans PlatformIO: écrire en 0x0 l'image `totobox-X.Y.Z-complet.bin` de la [dernière version publiée](https://github.com/thomas-lamure/totobox/releases/latest), avec `esptool.py` ou depuis le navigateur ([esptool-js](https://espressif.github.io/esptool-js/)). Les notes de chaque version expliquent aussi la mise à jour en gardant les réglages.
 
 5. **Mise en route**: carte microSD en FAT32, puis se connecter au point d'accès `TotoBox-XXXX` avec le téléphone. Voir le [guide d'utilisation](docs/usage.md).
 
@@ -60,7 +63,7 @@ Les évolutions sont listées dans [CHANGELOG.md](CHANGELOG.md).
 
 - **Code** (firmware, interface web, scripts, tests): [GPL-3.0-or-later](LICENSES/GPL-3.0-or-later.txt). Le firmware embarque [ESP32-audioI2S](https://github.com/schreibfaul1/ESP32-audioI2S), sous GPL-3.0.
 - **Matériel** (boîtier, modèles Onshape, plans de découpe, câblage), **documentation** et **logo**: [CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt).
-- La page web embarque [tweetnacl-js](https://github.com/dchest/tweetnacl-js) (domaine public, [Unlicense](LICENSES/Unlicense.txt)).
+- La page web embarque [tweetnacl-js](https://github.com/dchest/tweetnacl-js) (domaine public, [Unlicense](LICENSES/Unlicense.txt)), et le firmware les autorités racines de Mozilla pour vérifier GitHub ([MPL-2.0](LICENSES/MPL-2.0.txt)).
 
 Le détail par fichier est dans [REUSE.toml](REUSE.toml) ([REUSE](https://reuse.software)).
 

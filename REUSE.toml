@@ -29,3 +29,11 @@ path = "web/vendor/nacl.min.js"
 precedence = "override"
 SPDX-FileCopyrightText = "Dmitry Chestnykh, Devi Mandiri (tweetnacl-js)"
 SPDX-License-Identifier = "Unlicense"
+
+# Autorités racines de Mozilla (liste extraite par curl, https://curl.se/ca/cacert.pem), au format de
+# esp_crt_bundle: vérifient GitHub pendant une mise à jour en ligne (scripts/gen_ca_bundle.py).
+[[annotations]]
+path = "src/certs/x509_crt_bundle.bin"
+precedence = "override"
+SPDX-FileCopyrightText = "Mozilla Foundation and contributors (NSS root certificates)"
+SPDX-License-Identifier = "MPL-2.0"

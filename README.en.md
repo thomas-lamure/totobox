@@ -21,6 +21,7 @@ This repository holds the firmware (ESP32-S3, HermitX CardReader board), the par
 - **Phone-friendly web page**: assign cards, upload and organise files, set Wi-Fi and limits. First-run wizard, captive portal when the box runs its own access point.
 - **Parental lock**: master cards and a PIN, enforced by the firmware itself.
 - **Standalone and offline**: Wi-Fi is only needed for settings; deep sleep after 5 minutes, wakes up when a card is inserted.
+- **Updates from the page**: a new published version is announced and installs in one tap; the box downloads and verifies it itself.
 - **Robust**: SD card hot removal, exFAT cards detected and formattable on the box, secrets encrypted between page and box, protection against requests from other websites.
 
 ## Building one
@@ -34,6 +35,8 @@ This repository holds the firmware (ESP32-S3, HermitX CardReader board), the par
    pio run -t upload      # firmware
    pio run -t uploadfs    # web interface
    ```
+
+   Without PlatformIO: write the `totobox-X.Y.Z-complet.bin` image of the [latest release](https://github.com/thomas-lamure/totobox/releases/latest) at 0x0, with `esptool.py` or from the browser ([esptool-js](https://espressif.github.io/esptool-js/)). Each release's notes also explain how to update while keeping the settings.
 
 5. **First start**: format the microSD card as FAT32, then join the `TotoBox-XXXX` Wi-Fi access point with a phone; the settings page opens by itself. See [docs/usage.md](docs/usage.md).
 
@@ -57,6 +60,6 @@ Issues and pull requests are welcome, in French or in English. Please read [CONT
 
 - **Code** (firmware, web page, scripts, tests): [GPL-3.0-or-later](LICENSES/GPL-3.0-or-later.txt). The firmware links [ESP32-audioI2S](https://github.com/schreibfaul1/ESP32-audioI2S), which is GPL-3.0.
 - **Hardware** (enclosure, Onshape models, cutting files, wiring), **documentation** and **logo**: [CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt).
-- The web page embeds [tweetnacl-js](https://github.com/dchest/tweetnacl-js) (public domain, [Unlicense](LICENSES/Unlicense.txt)).
+- The web page embeds [tweetnacl-js](https://github.com/dchest/tweetnacl-js) (public domain, [Unlicense](LICENSES/Unlicense.txt)), and the firmware Mozilla's root certificates to verify GitHub ([MPL-2.0](LICENSES/MPL-2.0.txt)).
 
 Per-file details are in [REUSE.toml](REUSE.toml) ([REUSE](https://reuse.software)).

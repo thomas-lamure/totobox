@@ -4,6 +4,20 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+### Firmware
+
+- Mise à jour en ligne (`POST /api/update`): la boîte télécharge une version publiée sur GitHub (HTTPS, autorités racines de Mozilla), vérifie l'empreinte de la page et du firmware, les installe (partition OTA inactive) et redémarre, en gardant histoires, cartes et réglages. Seules les versions plus récentes du dépôt officiel sont acceptées.
+
+### Page web
+
+- À l'ouverture, puis une fois par jour, la page cherche une nouvelle version sur GitHub; bandeau « Nouvelle version de la boîte », nouveautés et installation en un clic avec l'avancement, aussi depuis les réglages.
+
+### Développement
+
+- Les Releases fournissent la page seule (`totobox-X.Y.Z-page.html.gz`) et, dans leurs notes, les empreintes lues par la page pour la mise à jour en ligne.
+
+- Publication automatisée: `make release VERSION=X.Y.Z` (version, CHANGELOG, commit, étiquette), puis la Release GitHub est créée à l'arrivée de l'étiquette, avec les notes du CHANGELOG et les fichiers à télécharger: image complète à flasher sans PlatformIO, firmware et page web pour une mise à jour, fichiers de découpe.
+
 ## 1.0.1 - 2026-10-28
 
 Corrections et tests; aucun changement de l'API ni des réglages.

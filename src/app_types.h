@@ -126,6 +126,8 @@ struct RuntimeState {
   uint32_t factoryResetAtMs = 0;
   // Envoi de fichiers en cours: le serveur web garde la main jusqu'à la fin, les LEDs le signalent.
   bool uploading = false;
+  // Mise à jour en ligne en cours (UpdateService): cartes ignorées, pas de veille, LEDs comme pour un envoi.
+  bool updating = false;
   uint16_t activeTrackCount = 0;
   // Dernière carte inconnue posée, conservée après retrait pour pouvoir l'associer depuis l'interface web.
   String lastUnknownCardUid;

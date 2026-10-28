@@ -6,10 +6,12 @@
 #include <esp_mac.h>
 #include <SD.h>
 #include <WiFi.h>
+#include <esp_ota_ops.h>
 #include <mdns.h>
 
 #include "card_backup_sd.h"
 #include "library_paths.h"
+#include "update_rules.h"
 #include "version.h"
 #include "logger.h"
 #include "network_names.h"
@@ -221,6 +223,7 @@ void WebAdmin::registerRoutes() {
   onApi("/api/setup/complete", HTTP_POST, [this]() { noteActivity(); handleSetupComplete(); });
   onApi("/api/sd/format", HTTP_POST, [this]() { noteActivity(); handleSdFormat(); });
   onApi("/api/trash/purge", HTTP_POST, [this]() { noteActivity(); handlePurgeTrash(); });
+  onApi("/api/update", HTTP_POST, [this]() { noteActivity(); handleUpdate(); });
 }
 
 void WebAdmin::onApi(const char* path, HTTPMethod method, std::function<void()> handler) {
@@ -285,6 +288,17 @@ void WebAdmin::handleStatus() {
   doc["state"] = deviceStateToString(runtime_.state);
   doc["firmwareVersion"] = totobox::kFirmwareVersion;
   doc["firmwareBuild"] = totobox::kFirmwareBuild;
+  // Mise à jour en ligne: dépôt où la page cherche les versions, et avancement d'une mise à jour lancée.
+  doc["updateRepo"] = totobox::kUpdateRepo;
+  if (updater_ != nullptr) {
+    const UpdateService::Status update = updater_->status();
+    JsonObject progress = doc["update"].to<JsonObject>();
+    progress["phase"] = UpdateService::phaseName(update.phase);
+    progress["version"] = update.version;
+    progress["done"] = update.done;
+    progress["total"] = update.total;
+    progress["error"] = update.error;
+  }
   doc["uiVersion"] = uiVersion_;
   doc["setupDone"] = config_.setupDone;
   // Pour chiffrer les secrets envoyés par la page (secret_channel).
@@ -1743,4 +1757,42 @@ uint64_t WebAdmin::sdTotalBytes() const {
 
 uint64_t WebAdmin::sdUsedBytes() const {
   return runtime_.sdReady ? SD.usedBytes() : 0;
+}
+
+// {version, uiVersion, firmware: {url, sha256, size}, page: {url, sha256, size}}: télécharge et installe une
+// version publiée sur GitHub (UpdateService), puis redémarre. La page suit l'avancement dans /api/status.
+void WebAdmin::handleUpdate() {
+  if (rejectIfLocked() || rejectIfBusy()) {
+    return;
+  }
+  JsonDocument request;
+  if (deserializeJson(request, server_.arg("plain")) != DeserializationError::Ok) {
+    server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_json\"}");
+    return;
+  }
+  update_rules::Request update;
+  update.version = String(static_cast<const char*>(request["version"] | ""));
+  update.uiVersion = String(static_cast<const char*>(request["uiVersion"] | ""));
+  for (const char* key : {"firmware", "page"}) {
+    update_rules::Asset& asset = strcmp(key, "firmware") == 0 ? update.firmware : update.page;
+    asset.url = String(static_cast<const char*>(request[key]["url"] | ""));
+    asset.sha256 = String(static_cast<const char*>(request[key]["sha256"] | ""));
+    asset.size = request[key]["size"] | 0;
+  }
+  const esp_partition_t* slot = esp_ota_get_next_update_partition(nullptr);
+  const char* error = update_rules::check(update, totobox::kFirmwareVersion, totobox::kUpdateRepo,
+                                          slot != nullptr ? slot->size : 0, totobox::kUpdateMaxPageBytes);
+  if (error == nullptr && !runtime_.wifiConnected) {
+    error = "no_internet";  // point d'accès seul: pas d'accès à GitHub
+  }
+  if (error == nullptr && (updater_ == nullptr || !updater_->start(update))) {
+    error = "update_running";
+  }
+  JsonDocument response;
+  response["ok"] = error == nullptr;
+  if (error != nullptr) {
+    logLine("web", "Mise à jour refusée: %s", error);
+    response["error"] = error;
+  }
+  sendJson(error == nullptr ? 200 : 409, response);
 }

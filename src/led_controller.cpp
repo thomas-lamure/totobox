@@ -106,7 +106,7 @@ void LedController::tick(const RuntimeState& runtime) {
     showOverlay();
     return;
   }
-  if (runtime.uploading) {
+  if (runtime.uploading || runtime.updating) {
     showUploadFill();
     return;
   }

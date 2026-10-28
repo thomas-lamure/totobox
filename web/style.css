@@ -340,6 +340,15 @@ button {
   transition: width 0.3s;
 }
 
+.release-notes {
+  white-space: pre-wrap;
+  max-height: 40vh;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
 .meta-row {
   display: flex;
   justify-content: space-between;

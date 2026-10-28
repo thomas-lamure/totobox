@@ -14,6 +14,7 @@
 #include "app_types.h"
 #include "config_store.h"
 #include "id3_stripper.h"
+#include "update_service.h"
 
 class WebAdmin {
  public:
@@ -28,6 +29,8 @@ class WebAdmin {
   void setUploadTick(std::function<void()> tick) { uploadTick_ = std::move(tick); }
   // Formate une carte SD illisible (AudioService): renvoie true si elle est prête ensuite.
   void setSdFormatter(std::function<bool()> formatter) { sdFormatter_ = std::move(formatter); }
+  // Mise à jour en ligne (POST /api/update, état dans /api/status).
+  void setUpdateService(UpdateService* updater) { updater_ = updater; }
 
  private:
   struct LibrarySummary {
@@ -86,6 +89,7 @@ class WebAdmin {
   void handleBackupSave();
   void handleBackupRestore();
   void handlePurgeTrash();
+  void handleUpdate();
   void sendJsonConfig();
   bool ensureDirectoryExists(const String& path);
   String resolveUploadPath(const String& targetDir, const String& safeName, const String& conflictMode) const;
@@ -129,4 +133,5 @@ class WebAdmin {
   bool sdStatsValid_ = false;
   std::function<void()> uploadTick_;
   std::function<bool()> sdFormatter_;
+  UpdateService* updater_ = nullptr;
 };

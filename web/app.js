@@ -56,6 +56,20 @@ const ERRORS = {
   too_many_cards: "Nombre maximum de cartes maîtresses atteint.",
   last_card: "Il faut garder au moins une carte maîtresse. Désactive plutôt le verrouillage.",
   lock_disabled: "Le verrouillage n'est pas activé.",
+  no_internet: "La boîte n'accède pas à Internet : connecte-la au Wi-Fi de la maison.",
+  download_failed: "Téléchargement impossible depuis GitHub. Réessaie plus tard.",
+  download_incomplete: "Téléchargement interrompu. Réessaie.",
+  hash_mismatch: "Fichier téléchargé abîmé (empreinte différente). Réessaie.",
+  invalid_size: "Fichier de mise à jour de taille inattendue.",
+  invalid_image: "Firmware refusé par la boîte : rien n'a été changé.",
+  no_space: "Pas de place pour la mise à jour.",
+  update_running: "Une mise à jour est déjà en cours.",
+  not_newer: "La boîte a déjà cette version ou une plus récente.",
+  invalid_url: "Mise à jour refusée : fichiers hors du dépôt officiel.",
+  invalid_hash: "Mise à jour refusée : empreinte invalide.",
+  invalid_version: "Mise à jour refusée : version invalide.",
+  invalid_ui_version: "Mise à jour refusée : version de page invalide.",
+  task_failed: "La boîte n'a pas pu lancer la mise à jour.",
   invalid_wifi_ssid: "Nom du Wi-Fi invalide (32 caractères maximum).",
   invalid_wifi_password: "Le mot de passe du Wi-Fi doit faire de 8 à 63 caractères.",
   invalid_ap_ssid: "Nom du point d'accès invalide (1 à 32 caractères).",
@@ -663,6 +677,7 @@ function renderHome() {
     $("sd-banner-actions").hidden = !(unreadable && !isLocked());
   }
   $("update-banner").hidden = !app.online || !uiOutdated();
+  renderFirmwareBanner();
 
   if (!status) {
     pill.className = "pill tone-grey";
@@ -1894,6 +1909,156 @@ $("trash-purge").addEventListener("click", async () => {
   renderFiles();
 });
 
+// ---------- Mise à jour du firmware ----------
+// La page cherche une nouvelle version sur GitHub à son ouverture, puis une fois par jour tant qu'elle reste ouverte
+// (depuis le téléphone: la boîte n'a pas forcément accès à Internet, et rien ne doit en dépendre pour écouter une
+// histoire). GitHub ne sert pas les fichiers des Releases aux pages d'une autre origine: c'est la boîte qui les
+// télécharge (POST /api/update), vérifie leur empreinte et redémarre; la page suit l'avancement dans le statut.
+
+const FIRMWARE_CHECK_MS = 24 * 3600 * 1000;
+// Sans Internet (téléphone sur le point d'accès de la boîte), nouvel essai une heure plus tard.
+const FIRMWARE_RETRY_MS = 3600 * 1000;
+const FIRMWARE_CHECK_TIMEOUT_MS = 8000;
+const FIRMWARE_DISMISS_KEY = "totobox.firmwareDismissed";
+const firmware = { nextCheckAt: 0, checking: false, release: null, installing: "" };
+
+function newerFirmware() {
+  const current = app.status && app.status.firmwareVersion;
+  return Boolean(firmware.release && current && compareVersions(firmware.release.version, current) > 0);
+}
+
+function firmwareDismissed() {
+  try {
+    return localStorage.getItem(FIRMWARE_DISMISS_KEY) === firmware.release.version;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function checkFirmwareRelease() {
+  const repo = app.status && app.status.updateRepo;
+  if (!repo || firmware.checking || Date.now() < firmware.nextCheckAt) return;
+  firmware.checking = true;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FIRMWARE_CHECK_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+      headers: { Accept: "application/vnd.github+json" },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    // 404: aucune version publiée.
+    if (response.ok) firmware.release = parseRelease(await response.json());
+    firmware.nextCheckAt = Date.now() + (response.ok || response.status === 404 ? FIRMWARE_CHECK_MS : FIRMWARE_RETRY_MS);
+  } catch (error) {
+    firmware.nextCheckAt = Date.now() + FIRMWARE_RETRY_MS;
+  } finally {
+    clearTimeout(timer);
+    firmware.checking = false;
+  }
+}
+
+function renderFirmwareBanner() {
+  const show = app.online && !isLocked() && newerFirmware() && !firmwareDismissed() && !firmware.installing;
+  $("firmware-banner").hidden = !show;
+  if (show) $("firmware-banner-version").textContent = firmware.release.version;
+}
+
+function openFirmwareDialog() {
+  const release = firmware.release;
+  $("firmware-version").textContent = release.version;
+  $("firmware-current").textContent = app.status.firmwareVersion;
+  $("firmware-link").href = release.url;
+  $("firmware-notes").textContent = plainNotes(release.notes) || "Pas de notes pour cette version.";
+  $("firmware-error").hidden = true;
+  renderFirmwareDialog();
+  openDialog($("firmware-dialog"));
+}
+
+// Ce qui empêche d'installer maintenant, ou "" si rien.
+function firmwareBlocker() {
+  const s = app.status || {};
+  if (!firmware.release.update) return "Cette version s'installe par USB : suis le lien vers GitHub.";
+  if (isLocked()) return "Déverrouille les réglages pour installer la mise à jour.";
+  if (s.wifiMode !== "sta" || !s.wifiConnected) return "La boîte doit être connectée au Wi-Fi de la maison pour télécharger la mise à jour.";
+  if (isPlaying()) return "Attends la fin de l'histoire, ou retire la carte.";
+  return "";
+}
+
+function renderFirmwareDialog() {
+  if (!firmware.release) return;
+  const update = (app.status && app.status.update) || {};
+  const running = Boolean(firmware.installing);
+  const blocker = running ? "" : firmwareBlocker();
+  $("firmware-hint").hidden = !blocker && running;
+  $("firmware-hint").textContent = blocker || "La boîte télécharge la mise à jour, la vérifie, puis redémarre (environ une minute). Les histoires, les cartes et les réglages sont conservés.";
+  $("firmware-install").hidden = running;
+  $("firmware-install").disabled = Boolean(blocker);
+  $("firmware-progress").hidden = !running;
+  if (!running) return;
+  let label = "Préparation…";
+  let percent = 0;
+  if (update.phase === "page" || update.phase === "firmware") {
+    percent = update.total ? Math.floor((update.done / update.total) * 100) : 0;
+    label = `${update.phase === "page" ? "Téléchargement de la page" : "Téléchargement du firmware"} : ${percent} %`;
+  } else if (update.phase === "restarting" || !app.online) {
+    label = "Installée. La boîte redémarre…";
+    percent = 100;
+  }
+  $("firmware-progress-label").textContent = label;
+  $("firmware-progress-bar").style.width = `${percent}%`;
+}
+
+// Appelé à chaque statut: avancement, échec, ou nouvelle version démarrée (la page est rechargée: elle a changé
+// elle aussi).
+function followFirmwareUpdate() {
+  if (!firmware.installing) return;
+  const s = app.status || {};
+  if (app.online && s.firmwareVersion === firmware.installing) {
+    firmware.installing = "";
+    toast(`Version ${s.firmwareVersion} installée.`);
+    setTimeout(() => location.reload(), 1500);
+    return;
+  }
+  if (app.online && s.update && s.update.phase === "failed" && s.update.version === firmware.installing) {
+    firmware.installing = "";
+    $("firmware-error").textContent = errorText(s.update.error);
+    $("firmware-error").hidden = false;
+  }
+  if ($("firmware-dialog").open) renderFirmwareDialog();
+}
+
+$("firmware-banner-open").addEventListener("click", openFirmwareDialog);
+$("firmware-open").addEventListener("click", () => {
+  $("settings-dialog").close();
+  openFirmwareDialog();
+});
+$("firmware-banner-dismiss").addEventListener("click", () => {
+  try {
+    localStorage.setItem(FIRMWARE_DISMISS_KEY, firmware.release.version);
+  } catch (error) {
+    // Navigation privée: le bandeau reviendra à la prochaine ouverture.
+  }
+  $("firmware-banner").hidden = true;
+});
+
+$("firmware-install").addEventListener("click", async () => {
+  const update = firmware.release && firmware.release.update;
+  if (!update) return;
+  $("firmware-error").hidden = true;
+  $("firmware-install").disabled = true;
+  const result = await api("/api/update", { json: update });
+  if (!result.ok) {
+    $("firmware-error").textContent = errorText(result.error);
+    $("firmware-error").hidden = false;
+    renderFirmwareDialog();
+    return;
+  }
+  firmware.installing = update.version;
+  renderFirmwareDialog();
+  renderFirmwareBanner();
+});
+
 // ---------- Réglages ----------
 
 function syncVolumeOutputs() {
@@ -1920,9 +2085,11 @@ function renderDeviceInfo() {
     ["Lecteur NFC", s.nfcReady ? "OK" : "Non détecté"],
     ["Cartes associées", String(s.bindingsCount ?? bindings().length)],
     // Version et commit compilé: à donner dans un signalement de problème.
-    ["Firmware", s.firmwareVersion ? `${s.firmwareVersion} (${s.firmwareBuild || "?"})` : "—"],
+    ["Firmware", s.firmwareVersion ? `${s.firmwareVersion} (${s.firmwareBuild || "?"})${newerFirmware() ? ` · ${firmware.release.version} disponible` : ""}` : "—"],
   ];
   $("device-info").innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+  $("firmware-open").hidden = !newerFirmware();
+  if (newerFirmware()) $("firmware-open").textContent = `Mettre à jour vers ${firmware.release.version}`;
 }
 
 $("open-settings").addEventListener("click", async () => {
@@ -2590,6 +2757,8 @@ async function refreshStatus() {
       openFiles(app.filesMode);
     }
   }
+  if (ok) checkFirmwareRelease();
+  followFirmwareUpdate();
   renderHome();
   if (app.view === "files") renderFiles();
   if (app.online && app.status && !isLocked()) {
