@@ -4,6 +4,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.2.1 - 2026-10-28
+
 ### Firmware
 
 - Mise à jour en ligne: la page enregistrée dans LittleFS est relue (taille et empreinte) avant d'installer le firmware. Une écriture incomplète passait inaperçue et laissait une page tronquée, bloquée sur « Connexion… » (vu en passant à 1.2.0; réparer avec `make uploadfs`). La place libre est vérifiée avant l'écriture et journalisée.
