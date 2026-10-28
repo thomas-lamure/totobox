@@ -6,6 +6,7 @@
 #include <Update.h>
 #include <WiFiClientSecure.h>
 #include <mbedtls/sha256.h>
+#include <sys/stat.h>
 
 #include <algorithm>
 
@@ -40,6 +41,15 @@ class Lock {
   SemaphoreHandle_t mutex_;
 };
 
+// LittleFS.exists() et remove() journalisent une erreur du framework pour un fichier absent: stat() vérifie
+// d'abord, sans rien écrire (point de montage par défaut de LittleFS).
+void removeIfPresent(const char* path) {
+  struct stat info;
+  if (stat((String("/littlefs") + path).c_str(), &info) == 0) {
+    LittleFS.remove(path);
+  }
+}
+
 String lowercase(String value) {
   value.toLowerCase();
   return value;
@@ -68,9 +78,7 @@ const char* UpdateService::phaseName(Phase phase) {
 bool UpdateService::begin() {
   mutex_ = xSemaphoreCreateMutex();
   // Reste d'une mise à jour interrompue avant l'étape 3: l'ancienne page est toujours en place.
-  if (LittleFS.exists(kNewPagePath)) {
-    LittleFS.remove(kNewPagePath);
-  }
+  removeIfPresent(kNewPagePath);
   return mutex_ != nullptr;
 }
 
@@ -259,7 +267,7 @@ UpdateService::CheckResult UpdateService::check() {
 
 void UpdateService::install() {
   // 1. Page, à côté de l'actuelle.
-  LittleFS.remove(kNewPagePath);
+  removeIfPresent(kNewPagePath);
   File page = LittleFS.open(kNewPagePath, FILE_WRITE);
   if (!page) {
     fail("write_failed");
@@ -270,7 +278,7 @@ void UpdateService::install() {
   });
   page.close();
   if (!pageOk) {
-    LittleFS.remove(kNewPagePath);
+    removeIfPresent(kNewPagePath);
     return;
   }
 
@@ -278,7 +286,7 @@ void UpdateService::install() {
   setPhase(Phase::Firmware, request_.firmware.size);
   if (!Update.begin(request_.firmware.size, U_FLASH)) {
     logLine("update", "Partition OTA indisponible (erreur %u)", Update.getError());
-    LittleFS.remove(kNewPagePath);
+    removeIfPresent(kNewPagePath);
     fail("no_space");
     return;
   }
@@ -292,13 +300,13 @@ void UpdateService::install() {
       fail("invalid_image");
     }
     Update.abort();
-    LittleFS.remove(kNewPagePath);
+    removeIfPresent(kNewPagePath);
     return;
   }
 
   // 3. Nouvelle page en place, puis redémarrage sur le nouveau firmware.
-  LittleFS.remove(kPagePath);
-  LittleFS.remove("/index.html");
+  removeIfPresent(kPagePath);
+  removeIfPresent("/index.html");
   if (!LittleFS.rename(kNewPagePath, kPagePath)) {
     // Le nouveau firmware démarrera quand même; la page pourra être renvoyée par USB (uploadfs).
     logLine("update", "Nouvelle page impossible à mettre en place");

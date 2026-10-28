@@ -16,6 +16,8 @@ make uploadfs      # pio run -t uploadfs: page web, à refaire après chaque mod
 make monitor       # pio device monitor: console série (115200 bauds)
 ```
 
+La console n'affiche que les lignes de la boîte (`logLine`, préfixées par le service) et les erreurs du framework: `CORE_DEBUG_LEVEL=1` dans [platformio.ini](../platformio.ini), les messages d'information et avertissements du framework, écrits sans verrou, se mélangeaient aux autres lignes. Le monter à 3 ou 4 pour déboguer le framework (Wi-Fi, TLS…).
+
 La console affiche en première ligne la version du firmware et le commit compilé (`TotoBox 1.0.0 (0e098db)`, `-dirty` si des fichiers étaient modifiés), aussi visibles dans Réglages > « Firmware » et dans `/api/status`. La version suit le [versionnage sémantique](https://semver.org/lang/fr/) et [CHANGELOG.md](../CHANGELOG.md).
 
 ## Publier une version

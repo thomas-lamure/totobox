@@ -4,6 +4,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+### Firmware
+
+- Console plus lisible: plus d'erreur du framework pour un fichier absent pendant une mise à jour ou au démarrage, et seules les erreurs du framework sont affichées (ses messages se mélangeaient aux lignes de la boîte).
+
 ## 1.2.0 - 2026-10-28
 
 ### Firmware
