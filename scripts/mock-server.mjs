@@ -15,6 +15,7 @@
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +23,9 @@ import { fileURLToPath } from "node:url";
 const WEB = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 const nacl = createRequire(import.meta.url)(join(WEB, "vendor", "nacl.min.js"));
 const PORT = Number(process.argv[2] || 8080);
+// Même version que le firmware (include/version.h).
+const FIRMWARE_VERSION =
+  readFileSync(join(WEB, "..", "include", "version.h"), "utf8").match(/kFirmwareVersion = "([^"]+)"/)?.[1] || "?";
 
 const LIBRARY_ROOT = "/content";
 const TRASH_ROOT = "/content/.trash";
@@ -248,7 +252,7 @@ function status() {
   const total = runtime.sdState === "ready" ? SD_TOTAL : 0;
   return {
     state: runtime.state,
-    firmwareVersion: "1.0.0",
+    firmwareVersion: FIRMWARE_VERSION,
     firmwareBuild: "simulée",
     uiVersion: "", // page servie depuis les sources: pas de version à comparer
     setupDone: config.setupDone,

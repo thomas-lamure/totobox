@@ -16,7 +16,13 @@ make uploadfs      # pio run -t uploadfs: page web, à refaire après chaque mod
 make monitor       # pio device monitor: console série (115200 bauds)
 ```
 
-La console affiche en première ligne la version du firmware et le commit compilé (`TotoBox 1.0.0 (0e098db)`, `-dirty` si des fichiers étaient modifiés), aussi visibles dans Réglages > « Firmware » et dans `/api/status`. La version suit [CHANGELOG.md](../CHANGELOG.md): la monter dans [include/version.h](../include/version.h) à chaque publication.
+La console affiche en première ligne la version du firmware et le commit compilé (`TotoBox 1.0.0 (0e098db)`, `-dirty` si des fichiers étaient modifiés), aussi visibles dans Réglages > « Firmware » et dans `/api/status`. La version suit le [versionnage sémantique](https://semver.org/lang/fr/) et [CHANGELOG.md](../CHANGELOG.md).
+
+Publier une version:
+
+1. choisir le numéro: correctif (1.0.**1**: corrections, tests, remaniement sans effet visible), mineure (1.**1**.0: nouvelle fonction, nouvelle route ou nouveau champ compatibles), majeure (**2**.0.0: API, format des réglages ou des cartes, câblage incompatibles);
+2. le reporter dans [include/version.h](../include/version.h), et renommer la section « Non publié » de [CHANGELOG.md](../CHANGELOG.md) en `## X.Y.Z - AAAA-MM-JJ` (en ouvrir une nouvelle, vide, au-dessus);
+3. commiter, puis étiqueter le commit: `git tag -a vX.Y.Z -m "TotoBox X.Y.Z"` et `git push --follow-tags`.
 
 ## Page web
 

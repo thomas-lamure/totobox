@@ -4,6 +4,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.0.1 - 2026-10-28
+
+Corrections et tests; aucun changement de l'API ni des réglages.
+
 ### Firmware
 
 - Règles des chemins de la bibliothèque (`library_paths`) et décisions de reprise de lecture (`playback_rules`) extraites dans des modules testés sur ordinateur (29 nouveaux cas).
@@ -15,7 +19,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 - Fonctions pures de la page dans `web/lib.js`, testées par `make test-web` (`node --test`, 10 cas): échappement HTML, formats, noms réseau et de dossiers, retrait ID3, cartes qui suivent un fichier déplacé.
 
-## 1.0.0
+## 1.0.0 - 2026-10-28
 
 Première publication.
 
