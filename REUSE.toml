@@ -1,0 +1,31 @@
+# Licences du dépôt, au format REUSE (https://reuse.software, vérification: `reuse lint`).
+# - Code (firmware, page web, scripts, tests): GPL-3.0-or-later, imposée par ESP32-audioI2S (GPL-3.0) lié au firmware.
+# - Matériel (boîtier, Features Onshape, plans de découpe, câblage), documentation et logo: CC BY-SA 4.0.
+# Un en-tête SPDX dans un fichier prime sur ce fichier (precedence "closest"); quand plusieurs blocs
+# correspondent à un fichier, le dernier l'emporte.
+version = 1
+
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Thomas Lamure"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = ["*.md", "**/*.md", "docs/**", "hardware/**"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Thomas Lamure"
+SPDX-License-Identifier = "CC-BY-SA-4.0"
+
+[[annotations]]
+path = "hardware/tools/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Thomas Lamure"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# tweetnacl-js 1.0.3, repris tel quel, chiffre les secrets envoyés par la page.
+[[annotations]]
+path = "web/vendor/nacl.min.js"
+precedence = "override"
+SPDX-FileCopyrightText = "Dmitry Chestnykh, Devi Mandiri (tweetnacl-js)"
+SPDX-License-Identifier = "Unlicense"

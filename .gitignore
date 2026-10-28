@@ -1,0 +1,12 @@
+# Construction PlatformIO
+.pio/
+
+# Fichiers propres à chaque poste (VS Code régénère launch.json avec des chemins absolus)
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+__pycache__/
+.claude/
+
+# Fichiers de production (mots de passe des étiquettes): voir docs/production.md
+production/

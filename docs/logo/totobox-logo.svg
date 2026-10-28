@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 270" role="img" aria-labelledby="t">
+  <title id="t">TotoBox</title>
+  <defs>
+    <g id="n1"><ellipse cx="0" cy="0" rx="6" ry="4.5" transform="rotate(-20)" stroke="#2D3047" stroke-width="2.2"/><path d="M5,-2 V-24 Q12,-18 15,-10" fill="none" stroke="#2D3047" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>
+    <g id="n2"><ellipse cx="0" cy="0" rx="6" ry="4.5" transform="rotate(-20)" stroke="#2D3047" stroke-width="2.2"/><ellipse cx="16" cy="-4" rx="6" ry="4.5" transform="rotate(-20 16 -4)" stroke="#2D3047" stroke-width="2.2"/><path d="M5,-2 V-24 L21,-28 V-6" fill="none" stroke="#2D3047" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M5,-24 L21,-28" stroke="#2D3047" stroke-width="4.5" stroke-linecap="round"/></g>
+    <path id="spark" d="M0,-7 Q1,-1 7,0 Q1,1 0,7 Q-1,1 -7,0 Q-1,-1 0,-7 Z"/>
+    <g id="toto">
+    <path d="M-4.5,-18 Q-5.5,-22.5 -7.5,-24.5 M0,-19 V-25 M4.5,-18 Q5.5,-22.5 7.5,-24.5" fill="none" stroke="#2D3047" stroke-width="2.6" stroke-linecap="round"/>
+    <ellipse cx="0" cy="0" rx="16" ry="19" fill="#FFC93C" stroke="#2D3047" stroke-width="2.6"/>
+    <circle cx="-10.5" cy="5" r="3" fill="#FF9AA2"/>
+    <circle cx="10.5" cy="5" r="3" fill="#FF9AA2"/>
+    <ellipse cx="-5.5" cy="-5" rx="2.8" ry="4" fill="none" stroke="#2D3047" stroke-width="1.8"/>
+    <ellipse cx="5.5" cy="-5" rx="2.8" ry="4" fill="none" stroke="#2D3047" stroke-width="1.8"/>
+    <path d="M0,-1 V5 M-3,2 H3 M-5,8.5 H5 M-5,11.5 H5" fill="none" stroke="#2D3047" stroke-width="1.8" stroke-linecap="round"/>
+  </g>
+  </defs>
+  <g transform="translate(5,0)">
+    <!-- Notes et étincelles autour du livre -->
+    <use href="#n2" transform="translate(22,78) scale(0.85)" fill="#FF6B5B"/>
+    <use href="#n1" transform="translate(178,58)" fill="#FFC93C"/>
+    <use href="#n1" transform="translate(176,160) scale(0.8)" fill="#FF6B5B"/>
+    <use href="#n1" transform="translate(30,170) scale(0.75)" fill="#FFC93C"/>
+    <use href="#spark" transform="translate(40,34) scale(0.7)" fill="#F2B33D"/>
+    <use href="#spark" transform="translate(184,110) scale(0.55)" fill="#F2B33D"/>
+    <!-- Pages, ruban marque-page -->
+    <rect x="66" y="30" width="96" height="150" rx="6" fill="#FFFFFF" stroke="#2D3047" stroke-width="2.4"/>
+    <path d="M150,34 V176 M155,34 V176" stroke="#C2C6D2" stroke-width="1.4"/>
+    <path d="M136,178 L136,200 L141,195 L146,200 L146,178 Z" fill="#2BB3A3" stroke="#2D3047" stroke-width="2" stroke-linejoin="round"/>
+    <!-- Couverture, dos, cadre et coins dorés -->
+    <rect x="52" y="24" width="98" height="156" rx="7" fill="#FF6B5B" stroke="#2D3047" stroke-width="3"/>
+    <path d="M52,31 Q52,24 59,24 H64 V180 H59 Q52,180 52,173 Z" fill="#D9473A" stroke="#2D3047" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="72" y="36" width="68" height="132" rx="6" fill="none" stroke="#F2B33D" stroke-width="2.4"/>
+    <path d="M72,48 Q78,42 84,36 M140,48 Q134,42 128,36 M72,156 Q78,162 84,168 M140,156 Q134,162 128,168" fill="none" stroke="#F2B33D" stroke-width="2.4" stroke-linecap="round"/>
+    <!-- Médaillon: la tête à Toto (0 + 0 =) -->
+    <ellipse cx="106" cy="92" rx="26" ry="31" fill="#FFF4D6" stroke="#F2B33D" stroke-width="3"/>
+    <use href="#toto" transform="translate(106,92) scale(1.05)"/>
+    <rect x="84" y="134" width="44" height="12" rx="6" fill="#F2B33D" stroke="#2D3047" stroke-width="1.8"/>
+    <use href="#spark" transform="translate(106,154) scale(0.55)" fill="#F2B33D"/>
+  </g>
+  <g transform="translate(37.5,250)">
+    <g fill="none" stroke="#2D3047" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6,-30 V-6 Q6,0 12,0 M0,-20 H13"/>
+      <ellipse cx="28" cy="-10.5" rx="7.5" ry="10.5"/>
+      <path d="M48,-30 V-6 Q48,0 54,0 M42,-20 H55"/>
+      <ellipse cx="70" cy="-10.5" rx="7.5" ry="10.5"/>
+      <path d="M88,-32 V0"/>
+      <ellipse cx="96" cy="-10.5" rx="8" ry="10.5"/>
+      <ellipse cx="118" cy="-10.5" rx="7.5" ry="10.5"/>
+      <path d="M133,-21 L147,0 M147,-21 L133,0"/>
+    </g>
+  </g>
+</svg>

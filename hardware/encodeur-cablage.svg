@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 560" width="780" height="560" font-family="Helvetica, Arial, sans-serif">
+  <title>Câblage de l'encodeur KY-040 sur la carte HermitX</title>
+  <rect width="780" height="560" fill="#ffffff"/>
+
+  <text x="390" y="34" text-anchor="middle" font-size="20" font-weight="bold" fill="#222">Câblage de l'encodeur KY-040 sur la carte HermitX</text>
+
+  <!-- Carte HermitX -->
+  <rect x="30" y="56" width="320" height="400" rx="10" fill="#e8f0e8" stroke="#3b6b3b" stroke-width="2"/>
+  <text x="190" y="82" text-anchor="middle" font-size="16" font-weight="bold" fill="#2a4d2a">Carte HermitX</text>
+
+  <text x="48" y="110" font-size="13" font-weight="bold" fill="#2a4d2a">Barrette IO (7 broches, centre de la carte)</text>
+  <g font-size="14">
+    <text x="48" y="140" font-weight="bold" fill="#222">IO9</text>
+    <text x="48" y="170" font-weight="bold" fill="#222">IO10</text>
+    <text x="48" y="200" font-weight="bold" fill="#222">IO11</text>
+    <text x="48" y="230" fill="#888">IO45</text>
+    <text x="48" y="260" fill="#888">IO46</text>
+    <text x="48" y="290" fill="#888">IO47</text>
+    <text x="48" y="320" fill="#888">IO48</text>
+  </g>
+  <g font-size="11" fill="#888">
+    <text x="100" y="230">libre: broche de configuration du démarrage</text>
+    <text x="100" y="260">libre: broche de configuration du démarrage</text>
+    <text x="100" y="290" fill="#b03030">ne rien brancher: pont de remise à zéro</text>
+    <text x="100" y="320">libre (réservée)</text>
+  </g>
+  <g fill="#c9a227" stroke="#7a6214" stroke-width="1">
+    <rect x="322" y="133" width="10" height="10"/>
+    <rect x="322" y="163" width="10" height="10"/>
+    <rect x="322" y="193" width="10" height="10"/>
+    <rect x="322" y="223" width="10" height="10"/>
+    <rect x="322" y="253" width="10" height="10"/>
+    <rect x="322" y="283" width="10" height="10"/>
+    <rect x="322" y="313" width="10" height="10"/>
+  </g>
+
+  <text x="48" y="356" font-size="13" font-weight="bold" fill="#2a4d2a">Barrette d'alimentation (3 broches)</text>
+  <g font-size="14">
+    <text x="48" y="386" fill="#888">+5V</text>
+    <text x="48" y="416" font-weight="bold" fill="#222">+3V3</text>
+    <text x="48" y="446" font-weight="bold" fill="#222">GND</text>
+  </g>
+  <text x="100" y="386" font-size="11" fill="#b03030">jamais pour l'encodeur</text>
+  <g fill="#c9a227" stroke="#7a6214" stroke-width="1">
+    <rect x="322" y="379" width="10" height="10"/>
+    <rect x="322" y="409" width="10" height="10"/>
+    <rect x="322" y="439" width="10" height="10"/>
+  </g>
+
+  <!-- Encodeur KY-040 -->
+  <rect x="540" y="96" width="210" height="300" rx="10" fill="#e6ecf6" stroke="#34507a" stroke-width="2"/>
+  <text x="645" y="122" text-anchor="middle" font-size="16" font-weight="bold" fill="#253c5e">Encodeur KY-040</text>
+  <circle cx="680" cy="250" r="34" fill="#cfd6e2" stroke="#34507a" stroke-width="2"/>
+  <circle cx="680" cy="250" r="12" fill="#9aa4b4" stroke="#34507a" stroke-width="1.5"/>
+  <g fill="#c9a227" stroke="#7a6214" stroke-width="1">
+    <rect x="548" y="163" width="10" height="10"/>
+    <rect x="548" y="203" width="10" height="10"/>
+    <rect x="548" y="243" width="10" height="10"/>
+    <rect x="548" y="303" width="10" height="10"/>
+    <rect x="548" y="343" width="10" height="10"/>
+  </g>
+  <g font-size="14" font-weight="bold" fill="#222">
+    <text x="568" y="173">CLK</text>
+    <text x="568" y="213">DT</text>
+    <text x="568" y="253">SW</text>
+    <text x="568" y="313">+</text>
+    <text x="568" y="353">GND</text>
+  </g>
+
+  <!-- Fils -->
+  <g fill="none" stroke-width="4" stroke-linecap="round">
+    <path d="M 332 138 C 440 138, 450 168, 548 168" stroke="#2f6fd6"/>
+    <path d="M 332 168 C 440 168, 450 208, 548 208" stroke="#2e9d3a"/>
+    <path d="M 332 198 C 440 198, 450 248, 548 248" stroke="#e6b800"/>
+    <path d="M 332 414 C 440 414, 450 308, 548 308" stroke="#f08a1c"/>
+    <path d="M 332 444 C 440 444, 450 348, 548 348" stroke="#111111"/>
+  </g>
+  <g font-size="11" fill="#444" text-anchor="end">
+    <text x="540" y="160">bleu</text>
+    <text x="540" y="200">vert</text>
+    <text x="540" y="240">jaune</text>
+    <text x="540" y="300">orange (3,3 V)</text>
+    <text x="540" y="340">noir</text>
+  </g>
+
+  <!-- Notes -->
+  <g font-size="12">
+    <text x="30" y="484" fill="#222">Carte vue de dessus, LEDs en bas et USB-C en haut: barrette IO de gauche à droite IO9 … IO48,</text>
+    <text x="30" y="500" fill="#222">barrette d'alimentation de bas en haut GND, +3V3, +5V. Vérifier la sérigraphie de la carte au premier câblage.</text>
+    <text x="30" y="524" fill="#b03030">« + » sur le +3V3 uniquement: les résistances de rappel du module tirent CLK, DT et SW au « + »,</text>
+    <text x="30" y="540" fill="#b03030">et les entrées de l'ESP32-S3 ne supportent pas le 5 V.</text>
+  </g>
+</svg>

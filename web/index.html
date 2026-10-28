@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Remplacé à la construction de l'image LittleFS (scripts/build_webfs.py), qui intègre aussi style.css et
+         les scripts dans la page: la boîte ne sert qu'un fichier. -->
+    <meta name="ui-version" content="__UI_VERSION__" />
+    <title>TotoBox</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22%3E %3Cdefs%3E %3Cg id=%22toto%22%3E %3Cpath d=%22M-4.5,-18 Q-5.5,-22.5 -7.5,-24.5 M0,-19 V-25 M4.5,-18 Q5.5,-22.5 7.5,-24.5%22 fill=%22none%22 stroke=%22%232D3047%22 stroke-width=%223.4%22 stroke-linecap=%22round%22/%3E %3Cellipse cx=%220%22 cy=%220%22 rx=%2216%22 ry=%2219%22 fill=%22%23FFC93C%22 stroke=%22%232D3047%22 stroke-width=%223.4%22/%3E %3Ccircle cx=%22-10.5%22 cy=%225%22 r=%223%22 fill=%22%23FF9AA2%22/%3E %3Ccircle cx=%2210.5%22 cy=%225%22 r=%223%22 fill=%22%23FF9AA2%22/%3E %3Cellipse cx=%22-5.5%22 cy=%22-5%22 rx=%222.8%22 ry=%224%22 fill=%22none%22 stroke=%22%232D3047%22 stroke-width=%222.6%22/%3E %3Cellipse cx=%225.5%22 cy=%22-5%22 rx=%222.8%22 ry=%224%22 fill=%22none%22 stroke=%22%232D3047%22 stroke-width=%222.6%22/%3E %3Cpath d=%22M0,-1 V5 M-3,2 H3 M-5,8.5 H5 M-5,11.5 H5%22 fill=%22none%22 stroke=%22%232D3047%22 stroke-width=%222.6%22 stroke-linecap=%22round%22/%3E %3C/g%3E %3C/defs%3E %3Crect x=%220%22 y=%220%22 width=%22128%22 height=%22128%22 rx=%2228%22 fill=%22%23E3F6F3%22/%3E %3Crect x=%2244%22 y=%2216%22 width=%2258%22 height=%2296%22 rx=%225%22 fill=%22%23FFFFFF%22 stroke=%22%232D3047%22 stroke-width=%223%22/%3E %3Cpath d=%22M84,108 L84,120 L88,116 L92,120 L92,108 Z%22 fill=%22%232BB3A3%22 stroke=%22%232D3047%22 stroke-width=%222.4%22 stroke-linejoin=%22round%22/%3E %3Crect x=%2232%22 y=%2212%22 width=%2262%22 height=%22100%22 rx=%227%22 fill=%22%23FF6B5B%22 stroke=%22%232D3047%22 stroke-width=%224%22/%3E %3Cpath d=%22M32,19 Q32,12 39,12 H42 V112 H39 Q32,112 32,105 Z%22 fill=%22%23D9473A%22 stroke=%22%232D3047%22 stroke-width=%224%22 stroke-linejoin=%22round%22/%3E %3Cellipse cx=%2268%22 cy=%2260%22 rx=%2220%22 ry=%2224%22 fill=%22%23FFF4D6%22 stroke=%22%23F2B33D%22 stroke-width=%223.5%22/%3E %3Cuse href=%22%23toto%22 transform=%22translate(68,60) scale(0.95)%22/%3E %3Crect x=%2255%22 y=%2293%22 width=%2226%22 height=%228%22 rx=%224%22 fill=%22%23F2B33D%22 stroke=%22%232D3047%22 stroke-width=%222%22/%3E %3C/svg%3E" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></symbol>
+        <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></symbol>
+        <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12" /></symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></symbol>
+        <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5zM19 19v3H6.5" /></symbol>
+        <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.4-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z" /></symbol>
+        <symbol id="i-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></symbol>
+        <symbol id="i-nfc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M9 9.5a4 4 0 0 1 0 5M12 8a6.5 6.5 0 0 1 0 8M15 6.8a8.5 8.5 0 0 1 0 10.4" /></symbol>
+        <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></symbol>
+        <symbol id="i-music" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></symbol>
+        <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 9l5-5 5 5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></symbol>
+        <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></symbol>
+        <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></symbol>
+        <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></symbol>
+        <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></symbol>
+        <symbol id="i-unlock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.5-2" /></symbol>
+        <symbol id="i-volume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" /></symbol>
+        <symbol id="i-folder-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 10v6M9 13h6" /></symbol>
+      </defs>
+    </svg>
+
+    <main>
+      <!-- Accueil: cartes NFC -->
+      <section id="view-home">
+        <header class="topbar">
+          <svg class="brand" viewBox="26 6 82 120" aria-hidden="true"><defs><g id="logo-toto"><path d="M-4.5,-18 Q-5.5,-22.5 -7.5,-24.5 M0,-19 V-25 M4.5,-18 Q5.5,-22.5 7.5,-24.5" fill="none" stroke="#2D3047" stroke-width="3.4" stroke-linecap="round"/><ellipse cx="0" cy="0" rx="16" ry="19" fill="#FFC93C" stroke="#2D3047" stroke-width="3.4"/><circle cx="-10.5" cy="5" r="3" fill="#FF9AA2"/><circle cx="10.5" cy="5" r="3" fill="#FF9AA2"/><ellipse cx="-5.5" cy="-5" rx="2.8" ry="4" fill="none" stroke="#2D3047" stroke-width="2.6"/><ellipse cx="5.5" cy="-5" rx="2.8" ry="4" fill="none" stroke="#2D3047" stroke-width="2.6"/><path d="M0,-1 V5 M-3,2 H3 M-5,8.5 H5 M-5,11.5 H5" fill="none" stroke="#2D3047" stroke-width="2.6" stroke-linecap="round"/></g></defs><rect x="44" y="16" width="58" height="96" rx="5" fill="#FFFFFF" stroke="#2D3047" stroke-width="3"/><path d="M84,108 L84,120 L88,116 L92,120 L92,108 Z" fill="#2BB3A3" stroke="#2D3047" stroke-width="2.4" stroke-linejoin="round"/><rect x="32" y="12" width="62" height="100" rx="7" fill="#FF6B5B" stroke="#2D3047" stroke-width="4"/><path d="M32,19 Q32,12 39,12 H42 V112 H39 Q32,112 32,105 Z" fill="#D9473A" stroke="#2D3047" stroke-width="4" stroke-linejoin="round"/><ellipse cx="68" cy="60" rx="20" ry="24" fill="#FFF4D6" stroke="#F2B33D" stroke-width="3.5"/><use href="#logo-toto" transform="translate(68,60) scale(0.95)"/><rect x="55" y="93" width="26" height="8" rx="4" fill="#F2B33D" stroke="#2D3047" stroke-width="2"/></svg>
+          <h1>TotoBox</h1>
+          <span id="state-pill" class="pill tone-grey">Connexion…</span>
+          <button id="lock-toggle" class="icon-btn" type="button" aria-label="Verrouiller les réglages" hidden><svg><use id="lock-toggle-icon" href="#i-unlock" /></svg></button>
+          <button id="open-settings" class="icon-btn" type="button" aria-label="Réglages"><svg><use href="#i-gear" /></svg></button>
+        </header>
+
+        <!-- Carte SD absente ou illisible: les histoires sont dessus, rien ne peut être lu sans elle. -->
+        <div id="sd-banner" class="banner tone-red" hidden>
+          <div>
+            <strong id="sd-banner-title"></strong>
+            <div id="sd-banner-absent" class="small">Insère la carte microSD dans la boîte : elle est détectée toute seule, sans redémarrer. Si elle est déjà en place, vérifie qu'elle est bien enfoncée, ou essaie-la sur un ordinateur : elle est peut-être abîmée.</div>
+            <div id="sd-banner-unreadable" class="small sd-help"></div>
+            <div id="sd-banner-locked" class="small">Déverrouille les réglages pour la formater depuis la boîte.</div>
+          </div>
+          <div id="sd-banner-actions" class="actions">
+            <button class="btn danger" type="button" data-format-sd>Formater la carte…</button>
+          </div>
+        </div>
+
+        <div id="offline-banner" class="banner tone-red" hidden>
+          <strong>Boîte injoignable</strong>
+          <span>Vérifie que ton téléphone est sur le même Wi-Fi que la boîte. La page se reconnecte d'elle-même.</span>
+        </div>
+
+        <div id="update-banner" class="banner tone-blue" hidden>
+          <div>
+            <strong>Nouvelle version de la page</strong>
+            <div class="small">La boîte a été mise à jour. Recharge pour en profiter.</div>
+          </div>
+          <div class="actions">
+            <button id="update-reload" class="btn primary" type="button">Recharger</button>
+          </div>
+        </div>
+
+        <div id="unknown-banner" class="banner tone-amber" hidden>
+          <div>
+            <strong>Nouvelle carte détectée</strong>
+            <div class="small">Identifiant <span id="unknown-uid" class="mono"></span></div>
+          </div>
+          <div class="actions">
+            <button id="assign-unknown" class="btn primary" type="button">Choisir une histoire</button>
+            <button id="dismiss-unknown" class="btn ghost" type="button">Plus tard</button>
+          </div>
+        </div>
+
+        <div id="now-card" class="card" hidden>
+          <div class="now">
+            <div id="now-cover" class="cover tone-green"><svg><use href="#i-play" /></svg></div>
+            <div class="now-body">
+              <div id="now-state" class="small">En lecture</div>
+              <div id="now-title" class="now-title"></div>
+              <div id="now-sub" class="muted"></div>
+            </div>
+          </div>
+          <div class="meta-row">
+            <span id="now-position"></span>
+          </div>
+        </div>
+
+        <div id="volume-card" class="card volume" hidden>
+          <svg aria-hidden="true"><use href="#i-volume" /></svg>
+          <button class="icon-btn" type="button" data-volume-step="-5" aria-label="Baisser le volume">−</button>
+          <input id="volume-range" type="range" step="1" aria-label="Volume" />
+          <button class="icon-btn" type="button" data-volume-step="5" aria-label="Monter le volume">+</button>
+          <span id="volume-value" class="volume-value"></span>
+        </div>
+
+        <div id="locked-card" class="card stack section" hidden>
+          <div class="now">
+            <div class="cover tone-grey"><svg><use href="#i-lock" /></svg></div>
+            <div class="now-body">
+              <div class="now-title">Réglages verrouillés</div>
+              <div class="muted">Pose la carte maîtresse sur la boîte, ou saisis le code de secours.</div>
+            </div>
+          </div>
+          <button id="open-unlock" class="btn" type="button">Saisir le code</button>
+        </div>
+
+        <div id="cards-section" class="section" data-manage>
+          <div class="section-head">
+            <h2>Tes cartes</h2>
+            <span id="cards-count" class="small"></span>
+          </div>
+          <div id="tiles" class="tiles"></div>
+        </div>
+
+        <div class="section" data-manage>
+          <button id="open-files" class="btn block" type="button"><svg><use href="#i-folder" /></svg>Gérer les fichiers</button>
+          <p id="sd-summary" class="small" style="text-align: center; margin-top: 10px"></p>
+        </div>
+      </section>
+
+      <!-- Fichiers -->
+      <!-- Assistant de première connexion: boîte neuve ou remise à zéro (status.setupDone faux). -->
+      <section id="view-setup" hidden>
+        <header class="topbar">
+          <h1 id="setup-title">Bienvenue</h1>
+          <span id="setup-step-label" class="small"></span>
+        </header>
+        <div id="setup-steps" class="steps"></div>
+
+        <div class="card stack" data-setup-panel="sd">
+          <div id="setup-sd-missing" class="waiting">
+            <div class="pulse"><svg><use href="#i-folder" /></svg></div>
+            <strong>Insère la carte SD</strong>
+            <p class="muted">Les histoires sont rangées sur la carte microSD de la boîte. Glisse-la dans son emplacement : elle sera détectée toute seule.</p>
+          </div>
+          <div id="setup-sd-unreadable" class="stack" hidden>
+            <strong>Carte SD illisible</strong>
+            <div class="sd-help"></div>
+            <button class="btn danger" type="button" data-format-sd>Formater la carte…</button>
+          </div>
+          <button id="setup-skip-sd" class="btn ghost" type="button">Continuer sans carte SD</button>
+        </div>
+
+        <div class="card stack" data-setup-panel="name">
+          <p class="muted">Donne un nom à la boîte : il sert d'adresse pour retrouver cette page depuis le Wi-Fi de la maison.</p>
+          <label class="field">
+            Nom de la boîte <span id="setup-name-preview" class="hint"></span>
+            <input id="setup-name" type="text" maxlength="40" placeholder="Chambre de Léo" autocomplete="off" />
+          </label>
+          <p id="setup-name-error" class="small" style="color: var(--red)" hidden></p>
+        </div>
+
+        <div class="card stack" data-setup-panel="lock">
+          <p class="muted">Les cartes maîtresses (une par parent) et un code de secours protègent les réglages : verrouillée, la page ne montre plus que la lecture et le volume. Garde ces cartes hors de portée des enfants.</p>
+          <div id="setup-lock-cards" class="list" hidden></div>
+          <button id="setup-lock-add" class="btn" type="button"><svg><use href="#i-plus" /></svg>Ajouter une carte maîtresse</button>
+          <p class="small muted">Étape facultative : tu pourras le faire plus tard dans les réglages.</p>
+        </div>
+
+        <div class="card stack" data-setup-panel="restore">
+          <p id="setup-restore-info"></p>
+          <button id="setup-restore" class="btn primary" type="button">Restaurer les cartes</button>
+        </div>
+
+        <div class="card stack" data-setup-panel="wifi">
+          <p class="muted">Relie la boîte au Wi-Fi de la maison pour retrouver cette page sans passer par son point d'accès.</p>
+          <label class="field">
+            Nom du réseau
+            <input id="setup-wifi-ssid" type="text" autocomplete="off" autocapitalize="off" />
+          </label>
+          <label class="field">
+            Mot de passe
+            <input id="setup-wifi-password" type="password" autocomplete="new-password" />
+          </label>
+          <p id="setup-wifi-error" class="small" style="color: var(--red)" hidden></p>
+          <button id="setup-wifi-skip" class="btn ghost" type="button">Rester sur le point d'accès de la boîte</button>
+        </div>
+
+        <div class="card stack" data-setup-panel="done">
+          <strong>La boîte est prête.</strong>
+          <dl id="setup-summary" class="kv"></dl>
+          <p class="muted">Pose une carte sur la boîte pour écouter une histoire.</p>
+        </div>
+
+        <div class="setup-foot">
+          <button id="setup-prev" class="btn" type="button">Retour</button>
+          <button id="setup-next" class="btn primary" type="button">Continuer</button>
+        </div>
+        <button id="setup-later" class="btn ghost" type="button">Configurer plus tard</button>
+      </section>
+
+      <section id="view-files" hidden>
+        <header class="topbar">
+          <button id="files-back" class="icon-btn" type="button" aria-label="Retour"><svg><use href="#i-back" /></svg></button>
+          <h1 id="files-title">Fichiers</h1>
+        </header>
+
+        <div id="files-busy" class="notice tone-amber" hidden>Une histoire est en cours de lecture : les fichiers sont modifiables quand la boîte est à l'arrêt.</div>
+        <div class="notice tone-amber upload-help stack" hidden>
+            <strong>Envoi de fichiers impossible ici</strong>
+            <span>La fenêtre de connexion Wi-Fi du téléphone ne permet pas d'envoyer des fichiers. Reste connecté au Wi-Fi de la boîte et ouvre cette adresse dans Chrome ou Safari :</span>
+            <span class="mono portal-url"></span>
+            <button class="btn" type="button" data-copy-url>Copier l'adresse</button>
+          </div>
+
+        <div id="files-main">
+          <nav id="crumbs" class="crumbs" aria-label="Dossier courant"></nav>
+          <div class="toolbar">
+            <button id="files-upload" class="btn primary" type="button"><svg><use href="#i-upload" /></svg>Ajouter</button>
+            <button id="files-mkdir" class="btn" type="button"><svg><use href="#i-folder-plus" /></svg>Nouveau dossier</button>
+          </div>
+          <div id="files-drop-hint" class="drop-hint small muted">Ou glisse ici des fichiers ou des dossiers depuis l'ordinateur.</div>
+          <div id="files-progress" class="card stack" hidden>
+            <div class="muted" id="files-progress-label">Envoi…</div>
+            <div class="progress"><div id="files-progress-bar" style="width: 0%"></div></div>
+          </div>
+          <input id="files-search" type="search" placeholder="Rechercher dans ce dossier" style="margin-bottom: 12px" />
+          <div id="files-list" class="list"></div>
+        </div>
+
+        <div id="trash-main" hidden>
+          <div id="trash-list" class="list"></div>
+          <button id="trash-purge" class="btn danger block" type="button" style="margin-top: 16px"><svg><use href="#i-trash" /></svg>Vider la corbeille</button>
+        </div>
+
+        <div class="section" id="files-footer">
+          <button id="open-trash" class="btn block" type="button"><svg><use href="#i-trash" /></svg>Corbeille</button>
+          <div id="sd-meter-wrap" class="small" style="margin-top: 14px">
+            <div id="sd-meter-label"></div>
+            <div class="meter"><div id="sd-meter" style="width: 0%"></div></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+
+    <!-- Assistant: associer une carte -->
+    <dialog id="assign-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2 id="assign-title">Nouvelle carte</h2>
+          <span id="assign-step-label" class="small"></span>
+          <button class="icon-btn" value="cancel" aria-label="Fermer"><svg><use href="#i-close" /></svg></button>
+        </div>
+        <div class="steps"><span data-step="1"></span><span data-step="2"></span><span data-step="3"></span></div>
+
+        <div class="sheet-body" data-panel="card">
+          <div class="waiting">
+            <div class="pulse"><svg><use href="#i-nfc" /></svg></div>
+            <strong>Pose la carte sur la boîte</strong>
+            <p class="muted">Elle sera détectée automatiquement.</p>
+          </div>
+          <details>
+            <summary class="muted">Saisir l'identifiant à la main</summary>
+            <div class="stack" style="margin-top: 10px">
+              <input id="assign-manual-uid" data-enter="assign-manual-ok" type="text" class="mono" placeholder="04A1B2C3D4" autocapitalize="characters" />
+              <button id="assign-manual-ok" class="btn" type="button">Utiliser cet identifiant</button>
+            </div>
+          </details>
+        </div>
+
+        <div class="sheet-body" data-panel="story" hidden>
+          <p class="muted">Que doit lire la carte ? Un dossier entier ou un seul fichier.</p>
+          <div id="assign-busy" class="notice tone-amber" hidden>La liste des dossiers n'est pas disponible pendant la lecture. Retire la carte en cours pour continuer.</div>
+          <input id="assign-search" data-enter="none" type="search" placeholder="Rechercher un dossier ou un fichier" />
+          <div id="assign-folders" class="list"></div>
+          <div class="notice tone-amber upload-help stack" hidden>
+            <strong>Envoi de fichiers impossible ici</strong>
+            <span>La fenêtre de connexion Wi-Fi du téléphone ne permet pas d'envoyer des fichiers. Reste connecté au Wi-Fi de la boîte et ouvre cette adresse dans Chrome ou Safari :</span>
+            <span class="mono portal-url"></span>
+            <button class="btn" type="button" data-copy-url>Copier l'adresse</button>
+          </div>
+          <button id="assign-new-folder" class="btn" type="button"><svg><use href="#i-upload" /></svg>Créer un dossier et le remplir</button>
+          <div id="assign-progress" class="stack" hidden>
+            <div class="muted" id="assign-progress-label">Envoi…</div>
+            <div class="progress"><div id="assign-progress-bar" style="width: 0%"></div></div>
+          </div>
+        </div>
+
+        <div class="sheet-body" data-panel="name" hidden>
+          <label class="field">
+            Nom de la carte
+            <input id="assign-label" type="text" placeholder="Le Petit Prince" maxlength="40" />
+          </label>
+          <dl class="kv">
+            <dt>Carte</dt>
+            <dd id="assign-summary-uid" class="mono"></dd>
+            <dt>Contenu</dt>
+            <dd id="assign-summary-folder"></dd>
+          </dl>
+          <p class="small">Si la carte est encore posée, la lecture démarre dès l'enregistrement.</p>
+        </div>
+
+        <div class="sheet-foot">
+          <button id="assign-prev" class="btn" type="button">Retour</button>
+          <button id="assign-next" class="btn primary" type="button">Continuer</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Fiche d'une carte existante -->
+    <dialog id="card-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2>Carte</h2>
+          <button class="icon-btn" value="cancel" aria-label="Fermer"><svg><use href="#i-close" /></svg></button>
+        </div>
+        <div class="sheet-body">
+          <label class="field">
+            Nom
+            <input id="card-label" type="text" maxlength="40" />
+          </label>
+          <div class="stack" style="gap: 6px">
+            <div class="group-title">Contenu lu</div>
+            <div class="list">
+              <button id="card-change-folder" class="row" type="button">
+                <svg><use id="card-folder-icon" href="#i-folder" /></svg>
+                <div class="row-body">
+                  <div id="card-folder" class="row-title"></div>
+                  <div class="small">Changer</div>
+                </div>
+                <svg><use href="#i-chevron" /></svg>
+              </button>
+            </div>
+          </div>
+          <div class="stack" style="gap: 6px">
+            <div class="group-title">Reprise</div>
+            <div class="card" style="box-shadow: none; padding: 12px 14px; display: flex; align-items: center; gap: 12px">
+              <div id="card-bookmark" class="row-body muted"></div>
+              <button id="card-reset-bookmark" class="btn" type="button">Recommencer</button>
+            </div>
+          </div>
+          <dl class="kv">
+            <dt>Identifiant</dt>
+            <dd id="card-uid" class="mono"></dd>
+          </dl>
+          <button id="card-delete" class="btn danger" type="button"><svg><use href="#i-trash" /></svg>Oublier cette carte</button>
+        </div>
+        <div class="sheet-foot">
+          <button class="btn" value="cancel">Annuler</button>
+          <button id="card-save" class="btn primary" type="button">Enregistrer</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Choix d'un dossier (depuis la fiche carte) -->
+    <dialog id="picker-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2>Choisir le contenu</h2>
+          <button class="icon-btn" value="cancel" aria-label="Fermer"><svg><use href="#i-close" /></svg></button>
+        </div>
+        <div class="sheet-body">
+          <div id="picker-busy" class="notice tone-amber" hidden>La liste des dossiers n'est pas disponible pendant la lecture.</div>
+          <input id="picker-search" data-enter="none" type="search" placeholder="Rechercher un dossier ou un fichier" />
+          <div id="picker-folders" class="list"></div>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Réglages -->
+    <dialog id="settings-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2>Réglages</h2>
+          <button class="icon-btn" value="cancel" aria-label="Fermer"><svg><use href="#i-close" /></svg></button>
+        </div>
+        <div class="sheet-body">
+          <div class="stack">
+            <div class="group-title">Volume autorisé</div>
+            <div class="split">
+              <label class="field">
+                Minimum <span class="hint"><span id="vol-min-out"></span> %</span>
+                <input id="vol-min" type="range" min="0" max="100" step="1" />
+              </label>
+              <label class="field">
+                Maximum <span class="hint"><span id="vol-max-out"></span> %</span>
+                <input id="vol-max" type="range" min="0" max="100" step="1" />
+              </label>
+            </div>
+            <p class="small">Volume actuel : <span id="vol-current"></span> %. Le bouton de la boîte reste dans ces limites.</p>
+          </div>
+
+          <div class="stack">
+            <div class="group-title">Wi-Fi de la maison</div>
+            <label class="field">
+              Nom du réseau
+              <input id="wifi-ssid" type="text" autocomplete="off" autocapitalize="off" />
+            </label>
+            <label class="field">
+              Mot de passe
+              <input id="wifi-password" type="password" placeholder="Inchangé" autocomplete="new-password" />
+            </label>
+            <button id="wifi-forget" class="btn danger" type="button" hidden>Oublier ce réseau</button>
+            <label class="field">
+              Nom de la boîte sur le réseau <span id="hostname-preview" class="hint"></span>
+              <input id="hostname" type="text" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false" />
+            </label>
+            <p class="small">Lettres, chiffres et tirets. Utile pour distinguer plusieurs boîtes.</p>
+          </div>
+
+          <div class="stack">
+            <div class="group-title">Point d'accès de secours</div>
+            <p class="small">Créé par la boîte quand le Wi-Fi de la maison est introuvable.</p>
+            <label class="field">
+              Nom
+              <input id="ap-ssid" type="text" autocomplete="off" autocapitalize="off" />
+            </label>
+            <label class="field">
+              Mot de passe <span class="hint">8 caractères minimum</span>
+              <input id="ap-password" type="password" placeholder="Inchangé" autocomplete="new-password" />
+            </label>
+            <p class="small">Appliqué sans redémarrage. Depuis le point d'accès, la boîte essaie le Wi-Fi de la maison sans couper le point d'accès, et affiche le résultat.</p>
+          </div>
+
+          <div class="stack">
+            <div class="group-title">Verrouillage</div>
+            <p id="lock-summary" class="small"></p>
+            <div id="lock-cards" class="list" hidden></div>
+            <div class="toolbar" style="margin: 0">
+              <button id="lock-enable" class="btn" type="button"><svg><use href="#i-lock" /></svg>Activer</button>
+              <button id="lock-add-card" class="btn" type="button" hidden><svg><use href="#i-plus" /></svg>Ajouter une carte</button>
+              <button id="lock-change-pin" class="btn" type="button" hidden>Changer le code</button>
+              <button id="lock-disable" class="btn danger" type="button" hidden>Désactiver</button>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="group-title">Boîte</div>
+            <dl id="device-info" class="kv"></dl>
+          </div>
+
+          <div class="stack">
+            <div class="group-title">Sauvegarde des cartes</div>
+            <p id="backup-info" class="small muted"></p>
+            <div class="toolbar" style="margin: 0">
+              <button id="backup-save" class="btn" type="button">Sauvegarder sur la carte SD</button>
+              <button id="backup-restore" class="btn" type="button">Restaurer</button>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="group-title">Remise à zéro</div>
+            <p class="small muted">Efface les réglages, le Wi-Fi, le verrouillage et les cartes associées (sauvegardées d'abord sur la carte SD). Les histoires de la carte SD sont conservées.</p>
+            <button id="factory-reset" class="btn danger" type="button">Réinitialiser la boîte…</button>
+          </div>
+          <p id="settings-error" class="small" style="color: var(--red)" hidden></p>
+        </div>
+        <div class="sheet-foot">
+          <button class="btn" value="cancel">Annuler</button>
+          <button id="settings-save" class="btn primary" type="button">Enregistrer</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Déverrouillage par code -->
+    <dialog id="unlock-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2>Déverrouiller</h2>
+          <button class="icon-btn" value="cancel" aria-label="Fermer"><svg><use href="#i-close" /></svg></button>
+        </div>
+        <div class="sheet-body">
+          <p class="muted">Pose la carte maîtresse sur la boîte, ou saisis le code de secours à 6 chiffres.</p>
+          <input id="unlock-pin" class="mono pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="••••••" />
+          <p id="unlock-error" class="small" style="color: var(--red)" hidden></p>
+        </div>
+        <div class="sheet-foot">
+          <button class="btn" value="cancel">Annuler</button>
+          <button id="unlock-submit" class="btn primary" type="button">Déverrouiller</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Configuration du verrouillage: activer, ajouter une carte maîtresse, changer le code -->
+    <dialog id="lock-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2 id="lock-title">Verrouillage</h2>
+          <span id="lock-step-label" class="small"></span>
+          <button class="icon-btn" value="cancel" aria-label="Fermer"><svg><use href="#i-close" /></svg></button>
+        </div>
+        <div class="steps" id="lock-steps"><span></span><span></span></div>
+
+        <div class="sheet-body" data-lock-panel="card">
+          <div class="waiting">
+            <div class="pulse"><svg><use href="#i-nfc" /></svg></div>
+            <strong>Pose la carte maîtresse sur la boîte</strong>
+            <p class="muted">Utilise une carte dédiée : elle ne lancera pas d'histoire.</p>
+          </div>
+          <details>
+            <summary class="muted">Saisir l'identifiant à la main</summary>
+            <div class="stack" style="margin-top: 10px">
+              <input id="lock-manual-uid" data-enter="lock-manual-ok" type="text" class="mono" placeholder="04A1B2C3D4" autocapitalize="characters" />
+              <button id="lock-manual-ok" class="btn" type="button">Utiliser cet identifiant</button>
+            </div>
+          </details>
+        </div>
+
+        <div class="sheet-body" data-lock-panel="details" hidden>
+          <div class="stack" data-lock-field="card">
+            <dl class="kv">
+              <dt>Carte</dt>
+              <dd id="lock-card-uid" class="mono"></dd>
+            </dl>
+            <label class="field">
+              À qui est cette carte ? <span class="hint">Facultatif</span>
+              <input id="lock-card-label" type="text" maxlength="24" placeholder="Maman" />
+            </label>
+          </div>
+          <div class="stack" data-lock-field="pin">
+            <label class="field">
+              <span id="lock-pin-label">Code de secours (6 chiffres)</span>
+              <input id="lock-pin" class="mono pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="new-password" />
+            </label>
+            <label class="field">
+              Confirme le code
+              <input id="lock-pin-confirm" class="mono pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="new-password" />
+            </label>
+            <p class="small">Un seul code pour toute la famille, utile si les cartes maîtresses sont perdues. Note-le en lieu sûr : il n'est pas récupérable.</p>
+          </div>
+          <p id="lock-error" class="small" style="color: var(--red)" hidden></p>
+        </div>
+
+        <div class="sheet-foot" id="lock-foot" hidden>
+          <button id="lock-prev" class="btn" type="button">Retour</button>
+          <button id="lock-save" class="btn primary" type="button">Activer</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Suivi d'une connexion Wi-Fi lancée depuis les réglages -->
+    <dialog id="network-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2>Connexion Wi-Fi</h2>
+          <button class="icon-btn" value="cancel" aria-label="Fermer"><svg><use href="#i-close" /></svg></button>
+        </div>
+        <div class="sheet-body">
+          <div id="network-waiting" class="waiting">
+            <div class="pulse"><svg><use href="#i-nfc" /></svg></div>
+          </div>
+          <p id="network-title" style="font-weight: 600"></p>
+          <p id="network-message" class="muted"></p>
+          <p id="network-address" class="mono" hidden></p>
+        </div>
+        <div class="sheet-foot">
+          <button id="network-edit" class="btn" type="button" hidden>Modifier les réglages</button>
+          <button class="btn primary" value="cancel">Fermer</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Saisie / confirmation génériques -->
+    <!-- Après une remise à zéro: reste ouvert quand la boîte redémarre (hors de MANAGE_DIALOGS). -->
+    <dialog id="reset-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2>Boîte réinitialisée</h2>
+        </div>
+        <div class="sheet-body">
+          <p id="reset-message" class="muted"></p>
+        </div>
+        <div class="sheet-foot">
+          <button class="btn primary" value="ok">OK</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="move-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2 id="move-title">Déplacer</h2>
+          <button class="icon-btn" value="cancel" aria-label="Fermer"><svg><use href="#i-close" /></svg></button>
+        </div>
+        <div class="sheet-body">
+          <input id="move-search" data-enter="none" type="search" placeholder="Rechercher un dossier" />
+          <div id="move-folders" class="list"></div>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="ask-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2 id="ask-title"></h2>
+        </div>
+        <div class="sheet-body">
+          <p id="ask-message" class="muted"></p>
+          <input id="ask-input" type="text" />
+          <p id="ask-error" class="small" style="color: var(--red)" hidden></p>
+          <button id="ask-extra" class="btn block" value="extra" hidden></button>
+        </div>
+        <div class="sheet-foot">
+          <button class="btn" value="cancel">Annuler</button>
+          <button id="ask-alt" class="btn danger" value="alt" hidden></button>
+          <button id="ask-ok" class="btn primary" value="ok">OK</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- tweetnacl-js 1.0.3 (https://github.com/dchest/tweetnacl-js), domaine public (Unlicense): chiffre les secrets
+         envoyés à la boîte, crypto.subtle n'existant pas sur une page servie en HTTP. -->
+    <script src="vendor/nacl.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
