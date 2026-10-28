@@ -35,7 +35,21 @@ void test_empty_storage_gives_defaults() {
   TEST_ASSERT_TRUE(config.apPassword.isEmpty());
   TEST_ASSERT_EQUAL_STRING("totobox", config.hostname.c_str());
   TEST_ASSERT_FALSE(config.lockEnabled);
+  TEST_ASSERT_TRUE(config.updateNotify);
+  TEST_ASSERT_FALSE(config.autoUpdate);
+  TEST_ASSERT_EQUAL_UINT32(0, config.lastUpdateCheck);
   TEST_ASSERT_EQUAL_UINT32(0, store.loadBindings().size());
+}
+
+void test_config_before_updates_gets_their_defaults() {
+  // Boîte en 1.1.0 ou avant: annonce des nouvelles versions, pas d'installation automatique.
+  writeRaw("config", R"({"setupDone":true,"wifiSsid":"Maison","hostname":"totobox"})");
+  ConfigStore store;
+  store.begin();
+  const DeviceConfig config = store.loadConfig();
+  TEST_ASSERT_TRUE(config.updateNotify);
+  TEST_ASSERT_FALSE(config.autoUpdate);
+  TEST_ASSERT_EQUAL_UINT32(0, config.lastUpdateCheck);
 }
 
 void test_config_round_trip() {
@@ -55,6 +69,9 @@ void test_config_round_trip() {
   saved.lockPinSalt = "00112233445566778899aabbccddeeff";
   saved.lockPinHash = "abcdef";
   saved.channelSecretKey = "00ff";
+  saved.updateNotify = false;
+  saved.autoUpdate = true;
+  saved.lastUpdateCheck = 1793180000;
 
   ConfigStore store;
   store.begin();
@@ -79,6 +96,9 @@ void test_config_round_trip() {
   TEST_ASSERT_EQUAL_STRING("00112233445566778899aabbccddeeff", config.lockPinSalt.c_str());
   TEST_ASSERT_EQUAL_STRING("abcdef", config.lockPinHash.c_str());
   TEST_ASSERT_EQUAL_STRING("00ff", config.channelSecretKey.c_str());
+  TEST_ASSERT_FALSE(config.updateNotify);
+  TEST_ASSERT_TRUE(config.autoUpdate);
+  TEST_ASSERT_EQUAL_UINT32(1793180000, config.lastUpdateCheck);
 }
 
 void test_legacy_single_master_card_is_migrated() {
@@ -276,6 +296,7 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(test_empty_storage_gives_defaults);
   RUN_TEST(test_config_round_trip);
+  RUN_TEST(test_config_before_updates_gets_their_defaults);
   RUN_TEST(test_legacy_single_master_card_is_migrated);
   RUN_TEST(test_incomplete_lock_is_disabled);
   RUN_TEST(test_corrupted_config_gives_defaults);

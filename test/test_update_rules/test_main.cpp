@@ -122,6 +122,94 @@ void test_digest_is_written_in_lowercase_hex() {
   TEST_ASSERT_EQUAL_STRING("008fa0ff", toHex(digest, sizeof(digest)).c_str());
 }
 
+// Réponse de l'API GitHub /releases/latest (champs gardés par le filtre de UpdateService::check).
+const char* kRelease = R"({
+  "tag_name": "v1.1.0",
+  "body": "### Firmware\n\n- Nouveau.\n\n<!-- totobox-update {\"version\":\"1.1.0\",\"uiVersion\":\"8291aeae5293\",\"firmware\":{\"name\":\"totobox-1.1.0-firmware.bin\",\"size\":1500000,\"sha256\":\"8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4\"},\"page\":{\"name\":\"totobox-1.1.0-page.html.gz\",\"size\":47000,\"sha256\":\"8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4\"}} -->",
+  "assets": [
+    {"name": "totobox-1.1.0-complet.bin", "size": 4194304, "browser_download_url": "https://github.com/thomas-lamure/totobox/releases/download/v1.1.0/totobox-1.1.0-complet.bin"},
+    {"name": "totobox-1.1.0-firmware.bin", "size": 1500000, "browser_download_url": "https://github.com/thomas-lamure/totobox/releases/download/v1.1.0/totobox-1.1.0-firmware.bin"},
+    {"name": "totobox-1.1.0-page.html.gz", "size": 47000, "browser_download_url": "https://github.com/thomas-lamure/totobox/releases/download/v1.1.0/totobox-1.1.0-page.html.gz"}
+  ]
+})";
+
+bool parse(const String& json, Request& request) {
+  JsonDocument release;
+  TEST_ASSERT_TRUE(deserializeJson(release, json.c_str()) == DeserializationError::Ok);
+  return parseRelease(release, request);
+}
+
+String replaced(String text, const char* from, const char* to) {
+  const int index = text.indexOf(from);
+  TEST_ASSERT_TRUE(index >= 0);
+  return text.substring(0, index) + to + text.substring(index + strlen(from));
+}
+
+void test_release_gives_an_acceptable_request() {
+  Request request;
+  TEST_ASSERT_TRUE(parse(kRelease, request));
+  TEST_ASSERT_EQUAL_STRING("1.1.0", request.version.c_str());
+  TEST_ASSERT_EQUAL_STRING("8291aeae5293", request.uiVersion.c_str());
+  TEST_ASSERT_EQUAL_STRING(
+      "https://github.com/thomas-lamure/totobox/releases/download/v1.1.0/totobox-1.1.0-firmware.bin",
+      request.firmware.url.c_str());
+  TEST_ASSERT_EQUAL_UINT32(47000, request.page.size);
+  TEST_ASSERT_NULL(checkRequest(request));
+}
+
+void test_release_without_online_update() {
+  Request request;
+  TEST_ASSERT_FALSE(parse(replaced(kRelease, "<!-- totobox-update", "<!-- autre"), request));  // pas de bloc
+  TEST_ASSERT_FALSE(parse(replaced(kRelease, "\"size\": 47000", "\"size\": 1"), request));  // taille différente
+  TEST_ASSERT_FALSE(parse(replaced(kRelease, "\\\"version\\\":\\\"1.1.0", "\\\"version\\\":\\\"1.0.9"), request));
+  TEST_ASSERT_FALSE(parse(replaced(kRelease, "{\\\"version", "{pas du json"), request));
+  TEST_ASSERT_FALSE(parse(R"({"tag_name":"v1.1.0"})", request));
+}
+
+void test_auto_check_waits_for_a_quiet_minute_once_a_day() {
+  AutoCheck state;
+  state.enabled = true;
+  state.online = true;
+  state.nowEpoch = 1793180000;
+  state.lastCheckEpoch = state.nowEpoch - kAutoCheckIntervalSec;
+  state.quietMs = kAutoCheckQuietMs;
+  TEST_ASSERT_TRUE(shouldAutoCheck(state));
+
+  AutoCheck early = state;
+  early.lastCheckEpoch = state.nowEpoch - kAutoCheckIntervalSec + 1;  // moins de 24 h
+  TEST_ASSERT_FALSE(shouldAutoCheck(early));
+  AutoCheck playing = state;
+  playing.quietMs = kAutoCheckQuietMs - 1;  // histoire finie (ou boîte réveillée) il y a moins d'une minute
+  TEST_ASSERT_FALSE(shouldAutoCheck(playing));
+  AutoCheck noTime = state;
+  noTime.nowEpoch = 0;  // heure NTP pas encore reçue
+  TEST_ASSERT_FALSE(shouldAutoCheck(noTime));
+  AutoCheck accessPoint = state;
+  accessPoint.online = false;
+  TEST_ASSERT_FALSE(shouldAutoCheck(accessPoint));
+  AutoCheck disabled = state;
+  disabled.enabled = false;
+  TEST_ASSERT_FALSE(shouldAutoCheck(disabled));
+  AutoCheck busy = state;
+  busy.busy = true;
+  TEST_ASSERT_FALSE(shouldAutoCheck(busy));
+  AutoCheck retry = state;
+  retry.retryWaiting = true;
+  TEST_ASSERT_FALSE(shouldAutoCheck(retry));
+}
+
+void test_auto_check_runs_on_a_new_box_and_after_a_clock_reset() {
+  AutoCheck state;
+  state.enabled = true;
+  state.online = true;
+  state.quietMs = kAutoCheckQuietMs;
+  state.nowEpoch = 1793180000;
+  state.lastCheckEpoch = 0;  // jamais cherché
+  TEST_ASSERT_TRUE(shouldAutoCheck(state));
+  state.lastCheckEpoch = state.nowEpoch + 3600;  // dernière recherche "dans le futur"
+  TEST_ASSERT_TRUE(shouldAutoCheck(state));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_versions_are_parsed);
@@ -133,5 +221,9 @@ int main() {
   RUN_TEST(test_sizes_must_fit_the_partitions);
   RUN_TEST(test_ui_version_is_a_plain_name);
   RUN_TEST(test_digest_is_written_in_lowercase_hex);
+  RUN_TEST(test_release_gives_an_acceptable_request);
+  RUN_TEST(test_release_without_online_update);
+  RUN_TEST(test_auto_check_waits_for_a_quiet_minute_once_a_day);
+  RUN_TEST(test_auto_check_runs_on_a_new_box_and_after_a_clock_reset);
   return UNITY_END();
 }

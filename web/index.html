@@ -77,10 +77,10 @@
 
         <div id="firmware-banner" class="banner tone-blue" hidden>
           <div>
-            <strong>Nouvelle version de la boîte : <span id="firmware-banner-version"></span></strong>
-            <div class="small">Améliorations et corrections, à installer depuis cette page.</div>
+            <strong>Version <span id="firmware-banner-version"></span> de la TotoBox</strong>
+            <div id="firmware-banner-text" class="small">Améliorations et corrections, à installer depuis cette page.</div>
           </div>
-          <div class="actions">
+          <div id="firmware-banner-actions" class="actions">
             <button id="firmware-banner-open" class="btn primary" type="button">Voir</button>
             <button id="firmware-banner-dismiss" class="btn ghost" type="button">Plus tard</button>
           </div>
@@ -186,6 +186,19 @@
         <div class="card stack" data-setup-panel="restore">
           <p id="setup-restore-info"></p>
           <button id="setup-restore" class="btn primary" type="button">Restaurer les cartes</button>
+        </div>
+
+        <div class="card stack" data-setup-panel="updates">
+          <p class="muted">De nouvelles versions de la TotoBox corrigent des problèmes et ajoutent des fonctions. Elles s'installent depuis cette page, ou d'elles-mêmes.</p>
+          <label class="switch">
+            <input id="setup-update-notify" type="checkbox" />
+            <span><strong>Être informé des mises à jour de la TotoBox</strong><span class="small muted">La page regarde sur GitHub, à son ouverture puis une fois par jour, si une nouvelle version est publiée.</span></span>
+          </label>
+          <label class="switch">
+            <input id="setup-auto-update" type="checkbox" />
+            <span><strong>Procéder automatiquement aux mises à jour lorsque possible</strong><span class="small muted">Une fois par jour, la boîte cherche elle-même une nouvelle version et l'installe : connectée au Wi-Fi de la maison, jamais pendant une histoire ni dans la minute qui suit son réveil ou une écoute. Histoires, cartes et réglages sont conservés.</span></span>
+          </label>
+          <p class="small muted">Modifiable plus tard dans les réglages.</p>
         </div>
 
         <div class="card stack" data-setup-panel="wifi">
@@ -449,6 +462,19 @@
               <button id="lock-change-pin" class="btn" type="button" hidden>Changer le code</button>
               <button id="lock-disable" class="btn danger" type="button" hidden>Désactiver</button>
             </div>
+          </div>
+
+          <div class="stack">
+            <div class="group-title">Mises à jour</div>
+            <label class="switch">
+              <input id="settings-update-notify" type="checkbox" />
+              <span><strong>Être informé des mises à jour de la TotoBox</strong><span class="small muted">La page regarde sur GitHub, à son ouverture puis une fois par jour, si une nouvelle version est publiée.</span></span>
+            </label>
+            <label class="switch">
+              <input id="settings-auto-update" type="checkbox" />
+              <span><strong>Procéder automatiquement aux mises à jour lorsque possible</strong><span class="small muted">Une fois par jour, la boîte cherche elle-même une nouvelle version et l'installe : connectée au Wi-Fi de la maison, jamais pendant une histoire ni dans la minute qui suit son réveil ou une écoute. Histoires, cartes et réglages sont conservés.</span></span>
+            </label>
+            <p id="settings-update-last" class="small muted"></p>
           </div>
 
           <div class="stack">

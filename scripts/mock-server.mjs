@@ -50,6 +50,9 @@ const config = {
   lockCards: [],
   pin: "",
   setupDone: false,
+  updateNotify: true,
+  autoUpdate: false,
+  lastUpdateCheck: 0,
 };
 
 let bindings = [
@@ -181,6 +184,10 @@ const UPDATE_PAGE_MS = 2000;
 const UPDATE_FIRMWARE_MS = 5000;
 const UPDATE_RESTART_MS = 3000;
 
+function startUpdate(version, pageSize = 47000, firmwareSize = 1500000) {
+  Object.assign(update, { phase: "page", version, startedAt: Date.now(), page: pageSize, firmware: firmwareSize, error: "" });
+}
+
 function updateStatus() {
   const elapsed = Date.now() - update.startedAt;
   if (update.phase === "page" && elapsed >= UPDATE_PAGE_MS) update.phase = "firmware";
@@ -283,6 +290,8 @@ function status() {
     firmwareBuild: "simulée",
     uiVersion: "", // page servie depuis les sources: pas de version à comparer
     updateRepo: "thomas-lamure/totobox",
+    updateNotify: config.updateNotify,
+    autoUpdate: config.autoUpdate,
     update: updateStatus(),
     setupDone: config.setupDone,
     boxKey: Buffer.from(boxKeys.publicKey).toString("base64"),
@@ -342,6 +351,7 @@ const routes = [
   ["POST", "/api/config", true, false, (body) => {
     for (const key of ["wifiSsid", "apSsid"]) if (typeof body[key] === "string") config[key] = body[key].trim();
     if (typeof body.hostname === "string") config.hostname = body.hostname.trim().toLowerCase() || "totobox";
+    for (const key of ["updateNotify", "autoUpdate"]) if (typeof body[key] === "boolean") config[key] = body[key];
     if (Number.isInteger(body.volumeMin)) config.volumeMin = Math.max(0, Math.min(100, body.volumeMin));
     if (Number.isInteger(body.volumeMax)) config.volumeMax = Math.max(config.volumeMin, Math.min(100, body.volumeMax));
     config.currentVolume = Math.max(config.volumeMin, Math.min(config.volumeMax, body.currentVolume ?? config.currentVolume));
@@ -520,7 +530,7 @@ const routes = [
     if (newer <= 0) return [409, { ok: false, error: "not_newer" }];
     if (!config.wifiSsid) return [409, { ok: false, error: "no_internet" }];
     if (["page", "firmware", "restarting"].includes(update.phase)) return [409, { ok: false, error: "update_running" }];
-    Object.assign(update, { phase: "page", version: body.version, startedAt: Date.now(), page: body.page?.size || 47000, firmware: body.firmware?.size || 1500000, error: "" });
+    startUpdate(body.version, body.page?.size, body.firmware?.size);
     return [200, { ok: true }];
   }],
   ["POST", "/api/setup/complete", true, false, () => {
@@ -580,7 +590,8 @@ function mockPage() {
 <section><h2>Cartes NFC</h2>${cards} ${masters}
 <p><button data-card="new">Poser une carte inconnue</button> <button data-action="remove">Retirer la carte</button></p></section>
 <section><h2>Carte SD</h2><button data-sd="ready">Prête</button> <button data-sd="unreadable">Illisible (exFAT)</button> <button data-sd="absent">Absente</button></section>
-<section><h2>Boîte</h2><button data-action="reset-library">Bibliothèque d'exemple</button></section>
+<section><h2>Boîte</h2><button data-action="reset-library">Bibliothèque d'exemple</button>
+<button data-action="auto-update">Mise à jour automatique (version suivante)</button></section>
 <script>
 document.addEventListener("click", async (event) => {
   const b = event.target.closest("button"); if (!b) return;
@@ -596,6 +607,12 @@ function handleMock(body) {
   else if (body.action === "remove") removeCard();
   else if (body.action === "sd") setSdState(body.state);
   else if (body.action === "reset-library") seedLibrary();
+  else if (body.action === "auto-update") {
+    // Ce que fait la boîte en mode automatique quand elle trouve une version plus récente.
+    const [major, minor, patch] = firmwareVersion.split(".").map(Number);
+    config.lastUpdateCheck = Math.floor(Date.now() / 1000);
+    startUpdate(`${major}.${minor}.${patch + 1}`);
+  }
 }
 
 // ---------- Serveur ----------

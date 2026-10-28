@@ -2,6 +2,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
 // Règles de la mise à jour en ligne (sans dépendance matérielle: testées sur ordinateur). La page trouve la
 // nouvelle version sur GitHub et la demande à la boîte, qui télécharge elle-même les fichiers (GitHub ne les sert
@@ -41,5 +42,30 @@ const char* check(const Request& request, const String& currentVersion, const St
 
 // Empreinte en hexadécimal minuscule (comparaison avec la valeur publiée).
 String toHex(const uint8_t* digest, size_t length);
+
+// Dernière version publiée, lue par la boîte elle-même (mode automatique) dans la réponse de l'API GitHub
+// /releases/latest: même lecture que la page (web/lib.js, parseRelease). Les notes de version se terminent par
+// le bloc « <!-- totobox-update {...} --> » (scripts/release.py update-block): version, version de la page,
+// nom, taille et SHA-256 des fichiers; leur adresse vient de la liste des fichiers de la Release.
+// Faux si la Release ne permet pas la mise à jour en ligne (bloc absent ou illisible, fichier manquant).
+bool parseRelease(JsonVariantConst release, Request& request);
+
+// Recherche automatique (réglage autoUpdate): une fois par jour, et jamais quand un enfant peut vouloir écouter.
+constexpr uint32_t kAutoCheckIntervalSec = 24UL * 3600UL;
+// Silence demandé avant de chercher (et donc d'installer): ni lecture ni carte posée depuis une minute, réveil
+// compris (un enfant réveille souvent la boîte pour écouter tout de suite).
+constexpr uint32_t kAutoCheckQuietMs = 60UL * 1000UL;
+
+struct AutoCheck {
+  bool enabled = false;      // réglage autoUpdate
+  bool online = false;       // Wi-Fi de la maison (le point d'accès seul n'a pas Internet)
+  bool busy = false;         // mise à jour ou recherche déjà en cours
+  bool retryWaiting = false; // dernier essai sans réponse de GitHub: attendre avant de réessayer
+  uint32_t nowEpoch = 0;     // heure (NTP) en secondes depuis 1970; 0 tant qu'elle n'est pas connue
+  uint32_t lastCheckEpoch = 0;
+  uint32_t quietMs = 0;      // temps écoulé sans lecture ni carte posée, depuis le réveil au plus
+};
+
+bool shouldAutoCheck(const AutoCheck& state);
 
 }  // namespace update_rules

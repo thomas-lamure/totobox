@@ -125,4 +125,58 @@ String toHex(const uint8_t* digest, size_t length) {
   return out;
 }
 
+namespace {
+
+constexpr char kUpdateBlock[] = "<!-- totobox-update ";
+
+bool findAsset(JsonVariantConst release, JsonVariantConst file, Asset& asset) {
+  const String name = String(static_cast<const char*>(file["name"] | ""));
+  const uint32_t size = file["size"] | 0;
+  for (JsonVariantConst item : release["assets"].as<JsonArrayConst>()) {
+    if (name.length() > 0 && name == String(static_cast<const char*>(item["name"] | "")) && size == (item["size"] | 0)) {
+      asset.url = String(static_cast<const char*>(item["browser_download_url"] | ""));
+      asset.sha256 = String(static_cast<const char*>(file["sha256"] | ""));
+      asset.size = size;
+      return asset.url.length() > 0;
+    }
+  }
+  return false;
+}
+
+}  // namespace
+
+bool parseRelease(JsonVariantConst release, Request& request) {
+  String version = String(static_cast<const char*>(release["tag_name"] | ""));
+  if (version.startsWith("v")) {
+    version = version.substring(1);
+  }
+  const String body = String(static_cast<const char*>(release["body"] | ""));
+  const int start = body.indexOf(kUpdateBlock);
+  if (start < 0) {
+    return false;
+  }
+  const int jsonStart = start + static_cast<int>(strlen(kUpdateBlock));
+  const int end = body.indexOf("-->", jsonStart);
+  if (end < 0) {
+    return false;
+  }
+  JsonDocument info;
+  if (deserializeJson(info, body.substring(jsonStart, end).c_str()) != DeserializationError::Ok ||
+      version != String(static_cast<const char*>(info["version"] | ""))) {
+    return false;
+  }
+  request.version = version;
+  request.uiVersion = String(static_cast<const char*>(info["uiVersion"] | ""));
+  return findAsset(release, info["firmware"], request.firmware) && findAsset(release, info["page"], request.page);
+}
+
+bool shouldAutoCheck(const AutoCheck& state) {
+  if (!state.enabled || !state.online || state.busy || state.retryWaiting || state.nowEpoch == 0 ||
+      state.quietMs < kAutoCheckQuietMs) {
+    return false;
+  }
+  // Horloge revenue en arrière (dernière recherche "dans le futur"): on ne reste pas bloqué.
+  return state.nowEpoch < state.lastCheckEpoch || state.nowEpoch - state.lastCheckEpoch >= kAutoCheckIntervalSec;
+}
+
 }  // namespace update_rules

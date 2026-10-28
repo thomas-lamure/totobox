@@ -80,6 +80,9 @@ DeviceConfig ConfigStore::loadConfig() {
   config.lockPinSalt = String(static_cast<const char*>(doc["lockPinSalt"] | ""));
   config.lockPinHash = String(static_cast<const char*>(doc["lockPinHash"] | ""));
   config.channelSecretKey = String(static_cast<const char*>(doc["channelSecretKey"] | ""));
+  config.updateNotify = doc["updateNotify"] | true;
+  config.autoUpdate = doc["autoUpdate"] | false;
+  config.lastUpdateCheck = doc["lastUpdateCheck"] | 0;
   // Verrouillage incomplet (ancienne version, NVS corrompue): on ne bloque pas la boîte.
   if (config.lockCards.empty() || config.lockPinHash.isEmpty()) {
     config.lockEnabled = false;
@@ -122,6 +125,9 @@ bool ConfigStore::saveConfig(const DeviceConfig& config) {
   doc["lockPinSalt"] = config.lockPinSalt;
   doc["lockPinHash"] = config.lockPinHash;
   doc["channelSecretKey"] = config.channelSecretKey;
+  doc["updateNotify"] = config.updateNotify;
+  doc["autoUpdate"] = config.autoUpdate;
+  doc["lastUpdateCheck"] = config.lastUpdateCheck;
 
   String payload;
   serializeJson(doc, payload);

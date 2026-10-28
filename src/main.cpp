@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <esp_mac.h>
 #include <esp_partition.h>
+#include <time.h>
 
 #include <vector>
 
@@ -18,6 +19,7 @@
 #include "network_service.h"
 #include "power_manager.h"
 #include "nfc_service.h"
+#include "update_rules.h"
 #include "update_service.h"
 #include "totobox_config.h"
 #include "version.h"
@@ -254,6 +256,59 @@ void saveVolumeIfIdle() {
   }
 }
 
+// ---------- Mise à jour automatique ----------
+
+// Fin de la dernière lecture ou du dernier passage d'une carte (0 = démarrage ou réveil): la recherche automatique
+// attend une minute de calme, un enfant réveillant souvent la boîte pour écouter tout de suite.
+uint32_t lastBusyMs = 0;
+// GitHub injoignable: nouvel essai une heure plus tard (en mémoire: un réveil réessaie, ce qui est voulu).
+constexpr uint32_t kAutoCheckRetryMs = 60UL * 60UL * 1000UL;
+uint32_t autoCheckRetryAtMs = 0;
+
+// Heure NTP en secondes depuis 1970, 0 tant qu'elle n'est pas connue (pas d'horloge à pile; l'heure est gardée
+// pendant la veille profonde).
+uint32_t epochNow() {
+  const time_t now = time(nullptr);
+  return now > 1700000000 ? static_cast<uint32_t>(now) : 0;
+}
+
+void autoUpdateStep() {
+  const bool listening = runtime.audioPlaying || !runtime.activeCardUid.isEmpty();
+  if (listening) {
+    lastBusyMs = millis();
+  }
+  updater.setHold(listening);
+
+  switch (updater.consumeCheckResult()) {
+    case UpdateService::CheckResult::UpToDate:
+    case UpdateService::CheckResult::Unusable:
+    case UpdateService::CheckResult::Installing:
+      // Recherche aboutie: la suivante dans 24 h (enregistré avant un éventuel redémarrage).
+      config.lastUpdateCheck = epochNow();
+      configStore.saveConfig(config);
+      break;
+    case UpdateService::CheckResult::Unreachable:
+      autoCheckRetryAtMs = millis() + kAutoCheckRetryMs;
+      break;
+    case UpdateService::CheckResult::Deferred:
+    case UpdateService::CheckResult::None:
+      break;
+  }
+
+  update_rules::AutoCheck state;
+  state.enabled = config.autoUpdate;
+  state.online = runtime.wifiConnected;
+  state.busy = updater.active();
+  state.retryWaiting = autoCheckRetryAtMs != 0 && static_cast<int32_t>(millis() - autoCheckRetryAtMs) < 0;
+  state.nowEpoch = epochNow();
+  state.lastCheckEpoch = config.lastUpdateCheck;
+  state.quietMs = millis() - lastBusyMs;
+  if (update_rules::shouldAutoCheck(state)) {
+    logLine("update", "Recherche automatique d'une nouvelle version");
+    updater.startCheck(totobox::kUpdateRepo, totobox::kFirmwareVersion);
+  }
+}
+
 void updateVolumeOverlay() {
   // Serial.print("-o");
   if (!runtime.volumeOverlayActive) {
@@ -328,6 +383,8 @@ void setup() {
 
   // Le Wi-Fi se connecte en arrière-plan: le NFC et l'audio sont prêts sans attendre le réseau.
   network.begin(config, runtime);
+  // Heure par NTP (une fois le Wi-Fi de la maison rejoint): date de la dernière recherche de mise à jour.
+  configTime(0, 0, "pool.ntp.org", "time.google.com");
 
   runtime.state = DeviceState::Booting;
   audio.begin(config.currentVolume);
@@ -391,6 +448,7 @@ void loop() {
     ESP.restart();
   }
   runtime.updating = updater.busy();
+  autoUpdateStep();
 
   syncSdState();
   handleVolume();
@@ -413,7 +471,7 @@ void loop() {
   runtime.activeTrackCount = audio.trackCount();
   runtime.activePositionMs = audio.currentPositionMs();
   runtime.audioPlaying = audio.isPlaying();
-  if (runtime.audioPlaying || runtime.updating) {
+  if (runtime.audioPlaying || updater.active()) {
     power.noteActivity(runtime);
   } else if (power.isIdle(runtime)) {
     goToSleep();

@@ -31,6 +31,7 @@ Le signet est précis à l'octet près en MP3 (même à débit variable), WAV, M
    - le nom de la boîte (« Chambre de Léo » donne `http://chambre-de-leo.local`);
    - les cartes maîtresses et le code de secours;
    - la restauration des cartes, si une sauvegarde est présente sur la carte SD;
+   - les mises à jour (être informé des nouvelles versions, les installer automatiquement);
    - en dernier, le Wi-Fi de la maison.
 
 Une boîte déjà utilisée (Wi-Fi, verrouillage ou cartes configurés) ne revoit pas l'assistant.
@@ -98,7 +99,10 @@ Les cartes maîtresses et le code de secours ne sont pas sauvegardés.
 
 ## Mise à jour
 
-À son ouverture, puis une fois par jour tant qu'elle reste ouverte, la page regarde sur GitHub si une nouvelle version de la boîte est publiée (le téléphone doit avoir accès à Internet; rien n'est envoyé, la page lit seulement la liste des versions). Un bandeau « Nouvelle version de la boîte » l'annonce (« Plus tard » le masque jusqu'à la version suivante); la mise à jour reste aussi proposée dans les réglages.
+Deux réglages (Réglages > Mises à jour, et une étape de l'assistant de première connexion):
+
+- **Être informé des mises à jour de la TotoBox** (activé par défaut): à son ouverture, puis une fois par jour tant qu'elle reste ouverte, la page regarde sur GitHub si une nouvelle version est publiée (le téléphone doit avoir accès à Internet; rien n'est envoyé, la page lit seulement la liste des versions). Un bandeau l'annonce (« Plus tard » le masque jusqu'à la version suivante); la mise à jour reste aussi proposée dans les réglages. Désactivé, la page ne contacte plus GitHub.
+- **Procéder automatiquement aux mises à jour lorsque possible** (désactivé par défaut): une fois par jour, la boîte cherche elle-même une nouvelle version sur GitHub et l'installe, sans page ouverte. Elle attend pour cela d'être connectée au Wi-Fi de la maison, de connaître l'heure (NTP), et une minute sans histoire ni carte posée, réveil compris: un enfant qui réveille la boîte pour écouter n'est jamais gêné. Une carte posée pendant la recherche reporte l'installation. La date de la dernière recherche est affichée dans les réglages. Une page ouverte pendant une mise à jour automatique en affiche l'avancement, comme pour une mise à jour lancée à la main.
 
 « Voir » affiche les nouveautés, puis « Installer »: la boîte télécharge elle-même la nouvelle version, vérifie son empreinte, l'installe et redémarre (environ une minute, LEDs cyan pendant le téléchargement). Les histoires, les cartes, les signets et les réglages sont conservés.
 

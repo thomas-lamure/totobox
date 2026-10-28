@@ -1920,7 +1920,8 @@ const FIRMWARE_CHECK_MS = 24 * 3600 * 1000;
 const FIRMWARE_RETRY_MS = 3600 * 1000;
 const FIRMWARE_CHECK_TIMEOUT_MS = 8000;
 const FIRMWARE_DISMISS_KEY = "totobox.firmwareDismissed";
-const firmware = { nextCheckAt: 0, checking: false, release: null, installing: "" };
+// installing: version en cours d'installation; external: lancée par la boîte (mode automatique) ou ailleurs.
+const firmware = { nextCheckAt: 0, checking: false, release: null, installing: "", external: false };
 
 function newerFirmware() {
   const current = app.status && app.status.firmwareVersion;
@@ -1937,7 +1938,12 @@ function firmwareDismissed() {
 
 async function checkFirmwareRelease() {
   const repo = app.status && app.status.updateRepo;
-  if (!repo || firmware.checking || Date.now() < firmware.nextCheckAt) return;
+  // Réglage « Être informé des mises à jour » désactivé: la page ne contacte pas GitHub.
+  if (!repo || app.status.updateNotify === false) {
+    firmware.release = null;
+    return;
+  }
+  if (firmware.checking || Date.now() < firmware.nextCheckAt) return;
   firmware.checking = true;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FIRMWARE_CHECK_TIMEOUT_MS);
@@ -1959,17 +1965,35 @@ async function checkFirmwareRelease() {
 }
 
 function renderFirmwareBanner() {
-  const show = app.online && !isLocked() && newerFirmware() && !firmwareDismissed() && !firmware.installing;
+  // Mise à jour en cours (lancée ici, depuis un autre téléphone ou par la boîte en mode automatique).
+  const update = (app.status && app.status.update) || {};
+  if (firmware.installing && !$("firmware-dialog").open) {
+    $("firmware-banner").hidden = false;
+    $("firmware-banner-version").textContent = firmware.installing;
+    const percent = update.total ? Math.floor((update.done / update.total) * 100) : 0;
+    $("firmware-banner-text").textContent =
+      update.phase === "restarting" || !app.online ? "Installée : la boîte redémarre…" : `Mise à jour en cours (${update.phase === "page" ? "page" : "firmware"} ${percent} %). Ne débranche pas la boîte.`;
+    $("firmware-banner-actions").hidden = true;
+    return;
+  }
+  const show = app.online && !isLocked() && newerFirmware() && !firmwareDismissed();
   $("firmware-banner").hidden = !show;
-  if (show) $("firmware-banner-version").textContent = firmware.release.version;
+  if (!show) return;
+  $("firmware-banner-version").textContent = firmware.release.version;
+  $("firmware-banner-text").textContent = "Améliorations et corrections, à installer depuis cette page.";
+  $("firmware-banner-actions").hidden = false;
 }
 
+// Fenêtre de la version proposée, ou de celle en cours d'installation (lancée ici, par la boîte en mode
+// automatique ou depuis un autre téléphone: ses notes ne sont alors pas forcément connues de la page).
 function openFirmwareDialog() {
-  const release = firmware.release;
-  $("firmware-version").textContent = release.version;
+  const version = firmware.installing || firmware.release.version;
+  const release = firmware.release && firmware.release.version === version ? firmware.release : null;
+  $("firmware-version").textContent = version;
   $("firmware-current").textContent = app.status.firmwareVersion;
-  $("firmware-link").href = release.url;
-  $("firmware-notes").textContent = plainNotes(release.notes) || "Pas de notes pour cette version.";
+  $("firmware-link").href = release ? release.url : `https://github.com/${app.status.updateRepo}/releases/tag/v${version}`;
+  $("firmware-notes").textContent = release ? plainNotes(release.notes) || "Pas de notes pour cette version." : "";
+  $("firmware-notes").hidden = !release;
   $("firmware-error").hidden = true;
   renderFirmwareDialog();
   openDialog($("firmware-dialog"));
@@ -1986,12 +2010,16 @@ function firmwareBlocker() {
 }
 
 function renderFirmwareDialog() {
-  if (!firmware.release) return;
+  if (!firmware.release && !firmware.installing) return;
   const update = (app.status && app.status.update) || {};
   const running = Boolean(firmware.installing);
   const blocker = running ? "" : firmwareBlocker();
-  $("firmware-hint").hidden = !blocker && running;
-  $("firmware-hint").textContent = blocker || "La boîte télécharge la mise à jour, la vérifie, puis redémarre (environ une minute). Les histoires, les cartes et les réglages sont conservés.";
+  $("firmware-hint").hidden = !blocker && running && !firmware.external;
+  $("firmware-hint").textContent =
+    blocker ||
+    (running
+      ? "La boîte installe cette mise à jour d'elle-même. Ne la débranche pas : elle redémarre toute seule, histoires, cartes et réglages conservés."
+      : "La boîte télécharge la mise à jour, la vérifie, puis redémarre (environ une minute). Les histoires, les cartes et les réglages sont conservés.");
   $("firmware-install").hidden = running;
   $("firmware-install").disabled = Boolean(blocker);
   $("firmware-progress").hidden = !running;
@@ -2012,8 +2040,15 @@ function renderFirmwareDialog() {
 // Appelé à chaque statut: avancement, échec, ou nouvelle version démarrée (la page est rechargée: elle a changé
 // elle aussi).
 function followFirmwareUpdate() {
-  if (!firmware.installing) return;
   const s = app.status || {};
+  // Mise à jour lancée ailleurs (mode automatique, autre téléphone): la page la suit aussi.
+  if (!firmware.installing && app.online && s.update && ["page", "firmware", "restarting"].includes(s.update.phase)) {
+    firmware.installing = s.update.version;
+    firmware.external = true;
+    // Même fenêtre que pour une mise à jour lancée ici: avancement, puis redémarrage et rechargement.
+    if (!$("firmware-dialog").open) openFirmwareDialog();
+  }
+  if (!firmware.installing) return;
   if (app.online && s.firmwareVersion === firmware.installing) {
     firmware.installing = "";
     toast(`Version ${s.firmwareVersion} installée.`);
@@ -2055,6 +2090,7 @@ $("firmware-install").addEventListener("click", async () => {
     return;
   }
   firmware.installing = update.version;
+  firmware.external = false;
   renderFirmwareDialog();
   renderFirmwareBanner();
 });
@@ -2106,6 +2142,11 @@ $("open-settings").addEventListener("click", async () => {
   $("ap-password").value = "";
   $("hostname").value = c.hostname || "totobox";
   renderHostnamePreview();
+  $("settings-update-notify").checked = c.updateNotify !== false;
+  $("settings-auto-update").checked = Boolean(c.autoUpdate);
+  $("settings-update-last").textContent = c.lastUpdateCheck
+    ? `Dernière recherche par la boîte : ${new Date(c.lastUpdateCheck * 1000).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}.`
+    : "";
   $("settings-error").hidden = true;
   renderSettingsLock();
   renderDeviceInfo();
@@ -2151,6 +2192,8 @@ $("settings-save").addEventListener("click", async () => {
     wifiSsid,
     apSsid,
     hostname,
+    updateNotify: $("settings-update-notify").checked,
+    autoUpdate: $("settings-auto-update").checked,
   };
   // Champ vide = mot de passe inchangé (la boîte ne renvoie jamais les mots de passe).
   const secrets = {};
@@ -2163,6 +2206,7 @@ $("settings-save").addEventListener("click", async () => {
   const result = await apiWithSecrets("/api/config", payload, secrets);
   if (!result.ok) return fail(errorText(result.error));
   app.config = result.data;
+  if (app.status) Object.assign(app.status, { updateNotify: payload.updateNotify, autoUpdate: payload.autoUpdate });
   $("settings-dialog").close();
   if (networkChanged) {
     openNetworkProgress(wifiSsid, apSsid, previousAttemptId);
@@ -2357,17 +2401,18 @@ const SETUP_TITLES = {
   name: "Nom de la boîte",
   lock: "Cartes maîtresses",
   restore: "Restaurer les cartes",
+  updates: "Mises à jour",
   wifi: "Wi-Fi de la maison",
   done: "C'est prêt !",
 };
-const setup = { step: "", skipSd: false, backup: null, backupLoading: false, restored: 0, wifiSsid: "" };
+const setup = { step: "", skipSd: false, backup: null, backupLoading: false, restored: 0, wifiSsid: "", updatesShown: false };
 
 function setupSteps() {
   const steps = [];
   if (!(app.status && app.status.sdReady) && !setup.skipSd) steps.push("sd");
   steps.push("name", "lock");
   if (setup.backup && setup.backup.exists) steps.push("restore");
-  steps.push("wifi", "done");
+  steps.push("updates", "wifi", "done");
   return steps;
 }
 
@@ -2438,6 +2483,11 @@ function renderSetup() {
   if (step === "restore" && setup.backup) {
     $("setup-restore-info").textContent = `La carte SD contient une sauvegarde${fmtSavedAt(setup.backup.savedAt)} avec ${plural(setup.backup.count, "carte associée", "cartes associées")} et leurs marque-pages.`;
     $("setup-restore").disabled = isPlaying();
+  }
+  if (step === "updates" && !setup.updatesShown) {
+    setup.updatesShown = true;
+    $("setup-update-notify").checked = app.config.updateNotify !== false;
+    $("setup-auto-update").checked = Boolean(app.config.autoUpdate);
   }
   if (step === "wifi" && !$("setup-wifi-ssid").value && app.config.wifiSsid) $("setup-wifi-ssid").value = app.config.wifiSsid;
   if (step === "done") {
@@ -2512,6 +2562,15 @@ $("setup-next").addEventListener("click", async () => {
         return;
       }
       app.config = result.data;
+    }
+  }
+  if (setup.step === "updates") {
+    const choice = { updateNotify: $("setup-update-notify").checked, autoUpdate: $("setup-auto-update").checked };
+    if (choice.updateNotify !== (app.config.updateNotify !== false) || choice.autoUpdate !== Boolean(app.config.autoUpdate)) {
+      const result = await api("/api/config", { json: choice });
+      if (!result.ok) return toast(errorText(result.error), true);
+      app.config = result.data;
+      if (app.status) Object.assign(app.status, choice);
     }
   }
   if (setup.step === "wifi") {

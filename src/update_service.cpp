@@ -9,7 +9,11 @@
 
 #include <algorithm>
 
+#include <ArduinoJson.h>
+#include <esp_ota_ops.h>
+
 #include "logger.h"
+#include "totobox_config.h"
 #include "version.h"
 
 // Autorités racines de Mozilla, intégrées au firmware (board_build.embed_files dans platformio.ini).
@@ -47,6 +51,8 @@ const char* UpdateService::phaseName(Phase phase) {
   switch (phase) {
     case Phase::Idle:
       return "idle";
+    case Phase::Checking:
+      return "checking";
     case Phase::Page:
       return "page";
     case Phase::Firmware:
@@ -71,9 +77,11 @@ bool UpdateService::begin() {
 bool UpdateService::start(const update_rules::Request& request) {
   {
     Lock lock(mutex_);
-    if (status_.phase == Phase::Page || status_.phase == Phase::Firmware || status_.phase == Phase::Restarting) {
+    if (status_.phase == Phase::Checking || status_.phase == Phase::Page || status_.phase == Phase::Firmware ||
+        status_.phase == Phase::Restarting) {
       return false;
     }
+    checkMode_ = false;
     request_ = request;
     status_ = Status();
     status_.phase = Phase::Page;
@@ -89,6 +97,36 @@ bool UpdateService::start(const update_rules::Request& request) {
   return true;
 }
 
+bool UpdateService::startCheck(const String& repo, const String& currentVersion) {
+  {
+    Lock lock(mutex_);
+    if (status_.phase == Phase::Checking || status_.phase == Phase::Page || status_.phase == Phase::Firmware ||
+        status_.phase == Phase::Restarting) {
+      return false;
+    }
+    checkMode_ = true;
+    checkRepo_ = repo;
+    checkCurrentVersion_ = currentVersion;
+    status_ = Status();
+    status_.phase = Phase::Checking;
+  }
+  if (xTaskCreatePinnedToCore(taskEntry, "update", kTaskStackBytes, this, kTaskPriority, nullptr, kTaskCore) !=
+      pdPASS) {
+    Lock lock(mutex_);
+    status_.phase = Phase::Idle;
+    checkResult_ = CheckResult::Unreachable;
+    return false;
+  }
+  return true;
+}
+
+UpdateService::CheckResult UpdateService::consumeCheckResult() {
+  Lock lock(mutex_);
+  const CheckResult result = checkResult_;
+  checkResult_ = CheckResult::None;
+  return result;
+}
+
 UpdateService::Status UpdateService::status() const {
   Lock lock(mutex_);
   return status_;
@@ -97,6 +135,10 @@ UpdateService::Status UpdateService::status() const {
 bool UpdateService::busy() const {
   const Phase phase = status().phase;
   return phase == Phase::Page || phase == Phase::Firmware || phase == Phase::Restarting;
+}
+
+bool UpdateService::active() const {
+  return status().phase == Phase::Checking || busy();
 }
 
 bool UpdateService::restartDue() const {
@@ -129,6 +171,93 @@ void UpdateService::fail(const char* error) {
 }
 
 void UpdateService::run() {
+  if (checkMode_) {
+    const CheckResult result = check();
+    {
+      Lock lock(mutex_);
+      checkResult_ = result;
+      if (result != CheckResult::Installing) {
+        status_.phase = Phase::Idle;
+      }
+    }
+    if (result != CheckResult::Installing) {
+      return;
+    }
+  }
+  install();
+}
+
+// Recherche automatique: dernière Release du dépôt (API GitHub, HTTPS), lue comme par la page.
+UpdateService::CheckResult UpdateService::check() {
+  WiFiClientSecure client;
+  client.setCACertBundle(kCaBundle);
+  HTTPClient http;
+  http.setUserAgent(String("TotoBox/") + totobox::kFirmwareVersion);
+  http.setTimeout(kHttpTimeoutMs);
+  const String url = "https://api.github.com/repos/" + checkRepo_ + "/releases/latest";
+  if (!http.begin(client, url)) {
+    return CheckResult::Unreachable;
+  }
+  http.addHeader("Accept", "application/vnd.github+json");
+  const int code = http.GET();
+  if (code == 404) {
+    http.end();
+    logLine("update", "Aucune version publiée");
+    return CheckResult::UpToDate;
+  }
+  if (code != HTTP_CODE_OK) {
+    logLine("update", "Recherche de mise à jour impossible (HTTP %d)", code);
+    http.end();
+    return CheckResult::Unreachable;
+  }
+  // Seuls ces champs sont gardés: la réponse complète (notes, auteurs...) prendrait trop de mémoire.
+  JsonDocument filter;
+  filter["tag_name"] = true;
+  filter["body"] = true;
+  filter["assets"][0]["name"] = true;
+  filter["assets"][0]["size"] = true;
+  filter["assets"][0]["browser_download_url"] = true;
+  JsonDocument release;
+  const DeserializationError parsed = deserializeJson(release, http.getString(), DeserializationOption::Filter(filter));
+  http.end();
+  if (parsed != DeserializationError::Ok) {
+    logLine("update", "Réponse de GitHub illisible (%s)", parsed.c_str());
+    return CheckResult::Unreachable;
+  }
+
+  String latest = String(static_cast<const char*>(release["tag_name"] | ""));
+  if (latest.startsWith("v")) {
+    latest = latest.substring(1);
+  }
+  if (!update_rules::isNewer(checkCurrentVersion_, latest)) {
+    logLine("update", "Version %s à jour (dernière publiée: %s)", checkCurrentVersion_.c_str(), latest.c_str());
+    return CheckResult::UpToDate;
+  }
+  update_rules::Request request;
+  const esp_partition_t* slot = esp_ota_get_next_update_partition(nullptr);
+  const char* error = update_rules::parseRelease(release, request)
+                          ? update_rules::check(request, checkCurrentVersion_, checkRepo_,
+                                                slot != nullptr ? slot->size : 0, totobox::kUpdateMaxPageBytes)
+                          : "no_online_update";
+  if (error != nullptr) {
+    logLine("update", "Version %s publiée, pas installable en ligne (%s): à installer par USB", latest.c_str(), error);
+    return CheckResult::Unusable;
+  }
+  if (hold_) {
+    logLine("update", "Version %s trouvée: installation reportée (lecture en cours)", latest.c_str());
+    return CheckResult::Deferred;
+  }
+  logLine("update", "Version %s trouvée: installation automatique", latest.c_str());
+  Lock lock(mutex_);
+  request_ = request;
+  status_ = Status();
+  status_.phase = Phase::Page;
+  status_.version = request.version;
+  status_.total = request.page.size;
+  return CheckResult::Installing;
+}
+
+void UpdateService::install() {
   // 1. Page, à côté de l'actuelle.
   LittleFS.remove(kNewPagePath);
   File page = LittleFS.open(kNewPagePath, FILE_WRITE);

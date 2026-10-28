@@ -4,6 +4,15 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+### Firmware
+
+- Mise à jour automatique (réglage `autoUpdate`, désactivé par défaut): une fois par jour, la boîte cherche une nouvelle version sur GitHub et l'installe, connectée au Wi-Fi de la maison et après une minute sans histoire ni carte posée, réveil compris. Heure par NTP, date de la dernière recherche gardée en NVS.
+
+### Page web
+
+- Réglages « Être informé des mises à jour de la TotoBox » (désactivé: la page ne contacte plus GitHub) et « Procéder automatiquement aux mises à jour lorsque possible », dans les réglages et dans une étape de l'assistant, juste avant le Wi-Fi.
+- Une mise à jour lancée par la boîte (ou depuis un autre téléphone) ouvre la fenêtre de mise à jour avec son avancement, comme une mise à jour lancée à la main.
+
 ## 1.1.0 - 2026-10-28
 
 ### Firmware

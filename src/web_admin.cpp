@@ -290,6 +290,9 @@ void WebAdmin::handleStatus() {
   doc["firmwareBuild"] = totobox::kFirmwareBuild;
   // Mise à jour en ligne: dépôt où la page cherche les versions, et avancement d'une mise à jour lancée.
   doc["updateRepo"] = totobox::kUpdateRepo;
+  // Réglages des mises à jour, visibles même verrouillée: la page ne cherche les versions que si updateNotify.
+  doc["updateNotify"] = config_.updateNotify;
+  doc["autoUpdate"] = config_.autoUpdate;
   if (updater_ != nullptr) {
     const UpdateService::Status update = updater_->status();
     JsonObject progress = doc["update"].to<JsonObject>();
@@ -437,6 +440,8 @@ void WebAdmin::handlePostConfig() {
   }
   config_.apPassword = apPassword;
   config_.hostname = hostname;
+  config_.updateNotify = doc["updateNotify"] | config_.updateNotify;
+  config_.autoUpdate = doc["autoUpdate"] | config_.autoUpdate;
   store_.saveConfig(config_);
 
   // Appliqué sans redémarrage: le réseau par NetworkService (après l'envoi de cette réponse), le nom tout de
@@ -802,6 +807,9 @@ void WebAdmin::sendJsonConfig() {
   doc["wifiSsid"] = config_.wifiSsid;
   doc["apSsid"] = config_.apSsid;
   doc["hostname"] = config_.hostname;
+  doc["updateNotify"] = config_.updateNotify;
+  doc["autoUpdate"] = config_.autoUpdate;
+  doc["lastUpdateCheck"] = config_.lastUpdateCheck;
   doc["lockEnabled"] = config_.lockEnabled;
   JsonArray lockCards = doc["lockCards"].to<JsonArray>();
   for (const MasterCard& card : config_.lockCards) {

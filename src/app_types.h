@@ -84,6 +84,12 @@ struct DeviceConfig {
   String lockPinHash;
   // Clé privée X25519 (hex) des secrets envoyés par la page (secret_channel); tirée au premier démarrage.
   String channelSecretKey;
+  // Mises à jour: la page cherche les nouvelles versions sur GitHub et les annonce (updateNotify); la boîte les
+  // cherche elle-même une fois par jour et les installe (autoUpdate, voir update_rules::shouldAutoCheck).
+  bool updateNotify = true;
+  bool autoUpdate = false;
+  // Dernière recherche automatique aboutie, en secondes depuis 1970 (heure NTP); 0 = jamais.
+  uint32_t lastUpdateCheck = 0;
 };
 
 struct RuntimeState {
