@@ -4,6 +4,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.1.0 - 2026-10-28
+
 ### Firmware
 
 - Mise à jour en ligne (`POST /api/update`): la boîte télécharge une version publiée sur GitHub (HTTPS, autorités racines de Mozilla), vérifie l'empreinte de la page et du firmware, les installe (partition OTA inactive) et redémarre, en gardant histoires, cartes et réglages. Seules les versions plus récentes du dépôt officiel sont acceptées.
