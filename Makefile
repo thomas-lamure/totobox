@@ -15,7 +15,7 @@ help:
 	@echo "make mock        faux serveur de la boîte: page web sans matériel (http://localhost:8080)"
 	@echo "make render      atelier de rendu du boîtier (http://localhost:8090, voir hardware/tools/render/)"
 	@echo "make test        tous les tests sur ordinateur (firmware, scripts, page web, outils du boîtier)"
-	@echo "make cad         régénère les DXF et les gabarits PDF depuis les contours"
+	@echo "make cad         régénère les DXF, les gabarits PDF et le plan de coupe depuis les contours"
 	@echo "make check-cad   vérifie que les DXF et PDF versionnés sont à jour"
 	@echo "make release VERSION=X.Y.Z   version, CHANGELOG, commit et étiquette (puis git push --follow-tags)"
 	@echo "make dist        fichiers d'une Release dans dist/ (images à flasher, découpe)"
@@ -68,6 +68,7 @@ cad:
 	$(PYTHON) $(TOOLS)/contours_to_pdf.py $(LASER)/totobox_castle_contours.txt "version à créneaux"
 	$(PYTHON) $(TOOLS)/contours_to_dxf.py $(LASER)/totobox_manuel_contours.txt
 	$(PYTHON) $(TOOLS)/contours_to_pdf.py $(LASER)/totobox_manuel_contours.txt "version fabriquée à la main"
+	$(PYTHON) $(TOOLS)/contours_to_cutplan.py $(LASER)/totobox_manuel_contours.txt "version fabriquée à la main"
 
 check-cad: cad
 	git diff --exit-code -- $(LASER)

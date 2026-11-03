@@ -8,6 +8,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 - Atelier de rendu du boîtier (`hardware/tools/render/`, `make render`): rendus three.js du modèle Onshape, base des illustrations du README.
 
+### Boîtier
+
+- Plan de coupe à la scie de la version manuelle (`hardware/laser/totobox_manuel_plan_de_coupe.pdf`, généré par `make cad`), pour découper sans gabarit imprimé: ordre des traits et leurs cotes (bandes horizontales, puis traits verticaux, puis recoupes), finitions et coordonnées des perçages.
+
 ## 1.2.1 - 2026-10-28
 
 ### Firmware
