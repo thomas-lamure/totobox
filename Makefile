@@ -5,6 +5,8 @@
 PYTHON ?= python3
 LASER := hardware/laser
 TOOLS := hardware/tools
+# OFFLINE=1: variante sans connexion vers l'extérieur (ni GitHub ni Home Assistant), environnement totobox-s3-offline.
+ENV := $(if $(filter 1,$(OFFLINE)),totobox-s3-offline,totobox-s3)
 
 .PHONY: help firmware webfs upload uploadfs monitor mock render release dist test test-native test-scripts test-web test-cad cad check-cad
 
@@ -12,25 +14,26 @@ help:
 	@echo "make firmware    compile le firmware (pio run)"
 	@echo "make webfs       construit l'image LittleFS de la page web (pio run -t buildfs)"
 	@echo "make upload      téléverse le firmware, make uploadfs la page web, make monitor ouvre la console"
+	@echo "                 OFFLINE=1 (firmware, upload): variante sans connexion vers l'extérieur (ni GitHub ni Home Assistant)"
 	@echo "make mock        faux serveur de la boîte: page web sans matériel (http://localhost:8080)"
 	@echo "make render      atelier de rendu du boîtier (http://localhost:8090, voir hardware/tools/render/)"
 	@echo "make test        tous les tests sur ordinateur (firmware, scripts, page web, outils du boîtier)"
 	@echo "make cad         régénère les DXF, les gabarits PDF et le plan de coupe depuis les contours"
 	@echo "make check-cad   vérifie que les DXF et PDF versionnés sont à jour"
 	@echo "make release VERSION=X.Y.Z   version, CHANGELOG, commit et étiquette (puis git push --follow-tags)"
-	@echo "make dist        fichiers d'une Release dans dist/ (images à flasher, découpe)"
+	@echo "make dist        fichiers d'une Release dans dist/ (images à flasher des deux variantes, découpe)"
 
 firmware:
-	pio run
+	pio run -e $(ENV)
 
 webfs:
-	pio run -t buildfs
+	pio run -e totobox-s3 -t buildfs
 
 upload:
-	pio run -t upload
+	pio run -e $(ENV) -t upload
 
 uploadfs:
-	pio run -t uploadfs
+	pio run -e totobox-s3 -t uploadfs
 
 monitor:
 	pio device monitor
@@ -39,12 +42,17 @@ release:
 	@test -n "$(VERSION)" || (echo "usage: make release VERSION=X.Y.Z" && exit 1)
 	$(PYTHON) scripts/release.py prepare $(VERSION)
 
-dist: firmware webfs
-	pio run -t merged
+# Les deux variantes (normale et hors ligne), chacune avec son image complète.
+DIST_ENVS := -e totobox-s3 -e totobox-s3-offline
+
+dist:
+	pio run $(DIST_ENVS)
+	pio run $(DIST_ENVS) -t buildfs
+	pio run $(DIST_ENVS) -t merged
 	$(PYTHON) scripts/release.py dist
 
 mock:
-	node scripts/mock-server.mjs
+	node scripts/mock-server.mjs $(if $(filter 1,$(OFFLINE)),--offline)
 
 render:
 	node hardware/tools/render/server.mjs

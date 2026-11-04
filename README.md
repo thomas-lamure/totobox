@@ -39,7 +39,7 @@ Le dépôt contient le firmware (ESP32-S3, carte HermitX CardReader), l'interfac
    pio run -t uploadfs    # interface web
    ```
 
-   Sans PlatformIO: écrire en 0x0 l'image `totobox-X.Y.Z-complet.bin` de la [dernière version publiée](https://github.com/thomas-lamure/totobox/releases/latest), avec `esptool.py` ou depuis le navigateur ([esptool-js](https://espressif.github.io/esptool-js/)). Les notes de chaque version expliquent aussi la mise à jour en gardant les réglages.
+   Sans PlatformIO: écrire en 0x0 l'image `totobox-X.Y.Z-complet.bin` de la [dernière version publiée](https://github.com/thomas-lamure/totobox/releases/latest), avec `esptool.py` ou depuis le navigateur ([esptool-js](https://espressif.github.io/esptool-js/)). Les notes de chaque version expliquent aussi la mise à jour en gardant les réglages. Pour une boîte qui ne doit contacter aucun serveur (ni GitHub ni Home Assistant), prendre `totobox-X.Y.Z-hors-ligne-complet.bin`.
 
 5. **Mise en route**: carte microSD en FAT32, puis se connecter au point d'accès `TotoBox-XXXX` avec le téléphone. Voir le [guide d'utilisation](docs/usage.md).
 

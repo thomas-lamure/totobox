@@ -3,7 +3,16 @@
 
 #include <Arduino.h>
 
+// Variante sans connexion vers l'extérieur (environnement totobox-s3-offline, make firmware OFFLINE=1): ni mise à
+// jour en ligne (GitHub, heure NTP), ni Home Assistant (MQTT). Leur code n'est pas compilé; restent la lecture,
+// la page web locale, le point d'accès et le Wi-Fi de la maison (mDNS).
+#ifndef TOTOBOX_OFFLINE
+#define TOTOBOX_OFFLINE 0
+#endif
+
 namespace totobox {
+
+constexpr bool kOnlineFeatures = !TOTOBOX_OFFLINE;
 
 constexpr uint8_t kLedPin = 16;
 constexpr uint8_t kLedCount = 8;

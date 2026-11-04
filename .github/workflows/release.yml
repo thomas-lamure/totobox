@@ -40,6 +40,7 @@ jobs:
 
           - Première installation, sans PlatformIO: `totobox-…-complet.bin` à écrire en 0x0 (`esptool.py --chip esp32s3 write_flash 0x0 totobox-…-complet.bin`, ou depuis le navigateur avec https://espressif.github.io/esptool-js/). Efface les réglages et les cartes associées de la boîte, pas sa carte SD ni son mot de passe d'usine.
           - Mise à jour en gardant les réglages: `esptool.py --chip esp32s3 write_flash 0x10000 totobox-…-firmware.bin 0x3D0000 totobox-…-page-web.bin`.
+          - Variante hors ligne, sans aucune connexion vers l'extérieur (ni mise à jour en ligne ni Home Assistant): `totobox-…-hors-ligne-complet.bin` en 0x0, ou `totobox-…-hors-ligne-firmware.bin` en 0x10000 avec la même `totobox-…-page-web.bin` en 0x3D0000. Elle se met à jour par USB uniquement.
           - Boîtier: `totobox-…-decoupe.zip` (DXF et gabarits PDF A4 des deux versions).
           NOTES
           # Bloc invisible lu par la page de la boîte pour la mise à jour en ligne (empreintes des fichiers).

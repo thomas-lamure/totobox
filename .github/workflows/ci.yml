@@ -26,6 +26,7 @@ jobs:
           key: pio-${{ hashFiles('platformio.ini') }}
       - run: pip install platformio
       - run: make firmware
+      - run: make firmware OFFLINE=1
       - run: make webfs
       - run: make test-native
 

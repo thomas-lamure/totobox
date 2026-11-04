@@ -289,6 +289,17 @@ void WebAdmin::handleStatus() {
   doc["state"] = deviceStateToString(runtime_.state);
   doc["firmwareVersion"] = totobox::kFirmwareVersion;
   doc["firmwareBuild"] = totobox::kFirmwareBuild;
+  // Fonctions compilées: la variante hors ligne (TOTOBOX_OFFLINE) n'a ni mise à jour en ligne ni Home Assistant,
+  // la page en cache les réglages.
+  JsonObject features = doc["features"].to<JsonObject>();
+  features["onlineUpdate"] = totobox::kOnlineFeatures;
+  features["homeAssistant"] = totobox::kOnlineFeatures;
+#if TOTOBOX_OFFLINE
+  // Dépôt vide: la page ne contacte pas GitHub.
+  doc["updateRepo"] = "";
+  doc["updateNotify"] = false;
+  doc["autoUpdate"] = false;
+#else
   // Mise à jour en ligne: dépôt où la page cherche les versions, et avancement d'une mise à jour lancée.
   doc["updateRepo"] = totobox::kUpdateRepo;
   // Réglages des mises à jour, visibles même verrouillée: la page ne cherche les versions que si updateNotify.
@@ -303,6 +314,7 @@ void WebAdmin::handleStatus() {
     progress["total"] = update.total;
     progress["error"] = update.error;
   }
+#endif
   doc["uiVersion"] = uiVersion_;
   doc["setupDone"] = config_.setupDone;
   // Pour chiffrer les secrets envoyés par la page (secret_channel).
@@ -339,7 +351,7 @@ void WebAdmin::handleStatus() {
   doc["lockEnabled"] = config_.lockEnabled;
   doc["locked"] = locked;
   // Liaison Home Assistant: un réglage, donc cachée quand la boîte est verrouillée.
-  if (!locked) {
+  if (!locked && totobox::kOnlineFeatures) {
     JsonObject homeAssistant = doc["homeAssistant"].to<JsonObject>();
     homeAssistant["enabled"] = config_.haEnabled;
     homeAssistant["state"] = runtime_.haState;
@@ -1813,6 +1825,10 @@ uint64_t WebAdmin::sdUsedBytes() const {
 // {version, uiVersion, firmware: {url, sha256, size}, page: {url, sha256, size}}: télécharge et installe une
 // version publiée sur GitHub (UpdateService), puis redémarre. La page suit l'avancement dans /api/status.
 void WebAdmin::handleUpdate() {
+#if TOTOBOX_OFFLINE
+  // Variante hors ligne: la boîte ne contacte jamais GitHub.
+  server_.send(404, "application/json", "{\"ok\":false,\"error\":\"not_available\"}");
+#else
   if (rejectIfLocked() || rejectIfBusy()) {
     return;
   }
@@ -1846,4 +1862,5 @@ void WebAdmin::handleUpdate() {
     response["error"] = error;
   }
   sendJson(error == nullptr ? 200 : 409, response);
+#endif
 }

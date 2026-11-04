@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Faux serveur de développement: sert la page de web/ et imite l'API JSON de la boîte (docs/api.md), sans matériel.
 //
-//   node scripts/mock-server.mjs [port]        (port 8080 par défaut)
+//   node scripts/mock-server.mjs [port] [--offline]   (port 8080 par défaut)
+//
+// --offline imite la variante sans connexion vers l'extérieur (TOTOBOX_OFFLINE): ni mise à jour en ligne ni
+// Home Assistant.
 //
 // Puis ouvrir http://localhost:8080 pour la page, et http://localhost:8080/mock pour simuler la boîte: poser ou
 // retirer une carte, état de la carte SD, lecture. Tout est en mémoire et repart de zéro au redémarrage.
@@ -22,7 +25,8 @@ import { fileURLToPath } from "node:url";
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 const nacl = createRequire(import.meta.url)(join(WEB, "vendor", "nacl.min.js"));
-const PORT = Number(process.argv[2] || 8080);
+const OFFLINE = process.argv.includes("--offline");
+const PORT = Number(process.argv.slice(2).find((arg) => /^\d+$/.test(arg)) || 8080);
 // Même version que le firmware (include/version.h).
 let firmwareVersion =
   readFileSync(join(WEB, "..", "include", "version.h"), "utf8").match(/kFirmwareVersion = "([^"]+)"/)?.[1] || "?";
@@ -328,10 +332,10 @@ function status() {
     firmwareVersion,
     firmwareBuild: "simulée",
     uiVersion: "", // page servie depuis les sources: pas de version à comparer
-    updateRepo: "thomas-lamure/totobox",
-    updateNotify: config.updateNotify,
-    autoUpdate: config.autoUpdate,
-    update: updateStatus(),
+    features: { onlineUpdate: !OFFLINE, homeAssistant: !OFFLINE },
+    ...(OFFLINE
+      ? { updateRepo: "", updateNotify: false, autoUpdate: false }
+      : { updateRepo: "thomas-lamure/totobox", updateNotify: config.updateNotify, autoUpdate: config.autoUpdate, update: updateStatus() }),
     setupDone: config.setupDone,
     boxKey: Buffer.from(boxKeys.publicKey).toString("base64"),
     challenge: challenge.toString("base64"),
@@ -353,7 +357,7 @@ function status() {
     stoppedRemotely: runtime.stoppedRemotely,
     lockEnabled: config.lockEnabled,
     locked: isLocked(),
-    ...(isLocked() ? {} : { homeAssistant: haStatus() }),
+    ...(isLocked() || OFFLINE ? {} : { homeAssistant: haStatus() }),
     lastUnknownCardUid: isLocked() ? "" : runtime.lastUnknownCardUid,
     ...(active ? { activeCardLabel: active.label } : {}),
     currentVolume: config.currentVolume,
@@ -577,6 +581,7 @@ const routes = [
     return [200, { ok: true }];
   }],
   ["POST", "/api/update", true, true, (body) => {
+    if (OFFLINE) return [404, { ok: false, error: "not_available" }];
     const parse = (v) => (/^(\d+)\.(\d+)\.(\d+)$/.exec(v || "") || []).slice(1).map(Number);
     const [next, now] = [parse(body.version), parse(firmwareVersion)];
     if (next.length !== 3) return [409, { ok: false, error: "invalid_version" }];
@@ -734,5 +739,6 @@ createServer(async (request, response) => {
     send(response, 500, { ok: false, error: String(error.message || error) });
   }
 }).listen(PORT, "127.0.0.1", () => {
+  if (OFFLINE) console.log("Variante hors ligne: ni mise à jour en ligne ni Home Assistant");
   console.log(`TotoBox simulée: page http://localhost:${PORT}/, simulation http://localhost:${PORT}/mock`);
 });

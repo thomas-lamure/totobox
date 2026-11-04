@@ -29,6 +29,8 @@ ROOT = Path(__file__).resolve().parent.parent
 VERSION_FILE = ROOT / "include" / "version.h"
 CHANGELOG = ROOT / "CHANGELOG.md"
 BUILD = ROOT / ".pio" / "build" / "totobox-s3"
+# Variante sans connexion vers l'extérieur (TOTOBOX_OFFLINE): même page, firmware sans GitHub ni Home Assistant.
+BUILD_OFFLINE = ROOT / ".pio" / "build" / "totobox-s3-offline"
 DIST = ROOT / "dist"
 
 UNRELEASED = "## Non publié"
@@ -134,7 +136,7 @@ def sha256(path: Path) -> str:
 
 
 def dist() -> None:
-    """Fichiers de la Release (après pio run, pio run -t buildfs et pio run -t merged)."""
+    """Fichiers de la Release (après pio run, pio run -t buildfs et pio run -t merged, pour les deux variantes)."""
     version = current_version(VERSION_FILE.read_text(encoding="utf-8"))
     files = {
         f"totobox-{version}-complet.bin": BUILD / "merged.bin",
@@ -142,10 +144,14 @@ def dist() -> None:
         f"totobox-{version}-page-web.bin": BUILD / "littlefs.bin",
         # Page seule, pour la mise à jour en ligne (remplace /index.html.gz dans LittleFS).
         f"totobox-{version}-page.html.gz": BUILD / "littlefs_data" / "index.html.gz",
+        # Variante hors ligne: ni mise à jour en ligne ni Home Assistant; se met à jour par USB. La page est la même
+        # (totobox-X.Y.Z-page-web.bin).
+        f"totobox-{version}-hors-ligne-complet.bin": BUILD_OFFLINE / "merged.bin",
+        f"totobox-{version}-hors-ligne-firmware.bin": BUILD_OFFLINE / "firmware.bin",
     }
     missing = [str(path) for path in files.values() if not path.exists()]
     if missing:
-        raise ReleaseError("à construire d'abord (make firmware webfs, pio run -t merged): " + ", ".join(missing))
+        raise ReleaseError("à construire d'abord (make dist): " + ", ".join(missing))
     if DIST.exists():
         shutil.rmtree(DIST)
     DIST.mkdir()

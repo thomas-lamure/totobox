@@ -15,7 +15,6 @@
 #include "factory_data.h"
 #include "factory_reset.h"
 #include "ha_rules.h"
-#include "ha_service.h"
 #include "secret_channel.h"
 #include "led_controller.h"
 #include "logger.h"
@@ -23,8 +22,11 @@
 #include "power_manager.h"
 #include "nfc_service.h"
 #include "update_rules.h"
-#include "update_service.h"
 #include "totobox_config.h"
+#if !TOTOBOX_OFFLINE
+#include "ha_service.h"
+#include "update_service.h"
+#endif
 #include "version.h"
 #include "volume_knob.h"
 #include "volume_rules.h"
@@ -44,8 +46,10 @@ NFCService nfc;
 AudioService audio;
 WebAdmin* webAdmin = nullptr;
 NetworkService network;
+#if !TOTOBOX_OFFLINE
 UpdateService updater;
 HomeAssistantService homeAssistant;
+#endif
 PowerManager power;
 
 CardBinding* findBindingByUid(const String& uid) {
@@ -159,9 +163,11 @@ void handleKnownCard(CardBinding& binding) {
 void handleCardPresented(const String& uid) {
   power.noteActivity(runtime);
   logLine("main", "Carte posée %s", uid.c_str());
+#if !TOTOBOX_OFFLINE
   if (ha_rules::shouldPublishCard(config, uid)) {
     homeAssistant.notifyCardPresented(uid);
   }
+#endif
 
   switch (card_flow::onCardPresented(runtime, config, bindings, uid)) {
     case card_flow::Presented::Unlock: {
@@ -186,9 +192,11 @@ void handleCardPresented(const String& uid) {
 void handleCardRemoved() {
   power.noteActivity(runtime);
   logLine("main", "Carte retirée %s", runtime.activeCardUid.c_str());
+#if !TOTOBOX_OFFLINE
   if (ha_rules::shouldPublishCard(config, runtime.activeCardUid)) {
     homeAssistant.notifyCardRemoved(runtime.activeCardUid);
   }
+#endif
 
   card_flow::Bookmark stoppedAt;
   const bool wasPlaying = audio.isPlaying();
@@ -206,7 +214,9 @@ void handleCardRemoved() {
 
 void showVolumeOverlay();
 
+#if !TOTOBOX_OFFLINE
 constexpr uint32_t kHaShutdownMs = 500;
+#endif
 
 // Veille profonde: termine proprement ce qui doit l'être, éteint les LEDs et dort (ne revient pas).
 // Une carte encore posée est confiée au PowerManager pour ne pas réveiller la boîte en boucle.
@@ -219,8 +229,10 @@ void goToSleep() {
   }
   audio.stop();
   leds.off();
+#if !TOTOBOX_OFFLINE
   // Home Assistant voit l'appareil indisponible tout de suite (sinon après l'expiration de la connexion).
   homeAssistant.shutdown(kHaShutdownMs);
+#endif
   power.sleep(nfc, runtime.activeCardUid);
 }
 
@@ -270,6 +282,7 @@ void saveVolumeIfIdle() {
   }
 }
 
+#if !TOTOBOX_OFFLINE
 // ---------- Home Assistant ----------
 
 // L'état est confié au service MQTT à ce rythme (il publie lui-même ce qui a changé).
@@ -414,6 +427,8 @@ void autoUpdateStep() {
   }
 }
 
+#endif  // !TOTOBOX_OFFLINE
+
 void updateVolumeOverlay() {
   // Serial.print("-o");
   if (!runtime.volumeOverlayActive) {
@@ -488,6 +503,9 @@ void setup() {
 
   // Le Wi-Fi se connecte en arrière-plan: le NFC et l'audio sont prêts sans attendre le réseau.
   network.begin(config, runtime);
+#if TOTOBOX_OFFLINE
+  logLine("main", "Variante hors ligne: ni mise à jour en ligne ni Home Assistant");
+#else
   // Home Assistant (MQTT) dans sa tâche du cœur 0; ne fait rien tant que la liaison est désactivée.
   uint8_t staMac[6] = {};
   esp_read_mac(staMac, ESP_MAC_WIFI_STA);
@@ -495,6 +513,7 @@ void setup() {
   homeAssistant.configure(config);
   // Heure par NTP (une fois le Wi-Fi de la maison rejoint): date de la dernière recherche de mise à jour.
   configTime(0, 0, "pool.ntp.org", "time.google.com");
+#endif
 
   runtime.state = DeviceState::Booting;
   audio.begin(config.currentVolume);
@@ -532,9 +551,11 @@ void setup() {
     return runtime.sdReady;
   });
   webAdmin->begin();
+#if !TOTOBOX_OFFLINE
   // Après le montage de LittleFS par l'interface web (la mise à jour y remplace la page).
   updater.begin();
   webAdmin->setUpdateService(&updater);
+#endif
 
   // Le délai avant la mise en veille part de la fin du démarrage.
   power.noteActivity(runtime);
@@ -552,6 +573,7 @@ void loop() {
     }
   }
 
+#if !TOTOBOX_OFFLINE
   // Mise à jour en ligne installée: redémarrage sur le nouveau firmware.
   if (updater.restartDue()) {
     audio.stop();
@@ -561,6 +583,10 @@ void loop() {
   runtime.updating = updater.busy();
   autoUpdateStep();
   homeAssistantStep();
+  const bool updateActive = updater.active();
+#else
+  const bool updateActive = false;
+#endif
 
   syncSdState();
   handleVolume();
@@ -583,7 +609,7 @@ void loop() {
   runtime.activeTrackCount = audio.trackCount();
   runtime.activePositionMs = audio.currentPositionMs();
   runtime.audioPlaying = audio.isPlaying();
-  if (runtime.audioPlaying || updater.active()) {
+  if (runtime.audioPlaying || updateActive) {
     power.noteActivity(runtime);
   } else if (power.isIdle(runtime)) {
     goToSleep();

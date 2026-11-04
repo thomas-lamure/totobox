@@ -10,11 +10,29 @@
 ## Compiler et téléverser
 
 ```bash
-make firmware      # pio run
-make upload        # pio run -t upload
+make firmware      # pio run -e totobox-s3
+make upload        # pio run -e totobox-s3 -t upload
 make uploadfs      # pio run -t uploadfs: page web, à refaire après chaque modification de web/
 make monitor       # pio device monitor: console série (115200 bauds)
 ```
+
+### Variante hors ligne
+
+Pour une boîte qui ne doit contacter aucun serveur, une variante exclut de la compilation tout ce qui sort du réseau local:
+
+```bash
+make firmware OFFLINE=1   # pio run -e totobox-s3-offline
+make upload OFFLINE=1
+```
+
+L'environnement `totobox-s3-offline` ([platformio.ini](../platformio.ini)) définit `TOTOBOX_OFFLINE=1` ([include/totobox_config.h](../include/totobox_config.h)) et retire:
+
+- la mise à jour en ligne (`UpdateService`: GitHub, certificats intégrés) et l'heure NTP, qui ne servait qu'à la recherche quotidienne;
+- Home Assistant (`HomeAssistantService`, bibliothèque PubSubClient).
+
+Restent la lecture, la page web locale, le point d'accès, le Wi-Fi de la maison et le nom `.local` (mDNS). `/api/status` l'annonce (`features.onlineUpdate` et `features.homeAssistant` à `false`, `updateRepo` vide): la page cache les réglages correspondants et ne contacte jamais GitHub. La page est la même pour les deux variantes (`make uploadfs`). Une boîte hors ligne se met à jour par USB, avec les fichiers `hors-ligne` de chaque Release (`make dist` construit les deux variantes). Le faux serveur l'imite avec `make mock OFFLINE=1`.
+
+Tout nouveau code qui contacte un serveur hors du réseau local va sous `#if !TOTOBOX_OFFLINE` et dans `build_src_filter` de cet environnement; la CI compile les deux variantes.
 
 La console n'affiche que les lignes de la boîte (`logLine`, préfixées par le service) et les erreurs du framework: `CORE_DEBUG_LEVEL=1` dans [platformio.ini](../platformio.ini), les messages d'information et avertissements du framework, écrits sans verrou, se mélangeaient aux autres lignes. Le monter à 3 ou 4 pour déboguer le framework (Wi-Fi, TLS…).
 
@@ -37,6 +55,7 @@ Au fil des modifications, chaque changement visible ajoute une ligne à la secti
    - `totobox-X.Y.Z-complet.bin`: image unique à écrire en 0x0 (première installation sans PlatformIO; efface les réglages et les cartes, pas la carte SD ni la partition d'usine), produite par la cible PlatformIO `merged` ([scripts/build_merged.py](../scripts/build_merged.py));
    - `totobox-X.Y.Z-firmware.bin` (0x10000) et `totobox-X.Y.Z-page-web.bin` (0x3D0000): mise à jour en gardant les réglages;
    - `totobox-X.Y.Z-page.html.gz`: la page seule, pour la mise à jour en ligne; les notes de version se terminent par un commentaire invisible (`scripts/release.py update-block`) qui donne à la page les empreintes à faire vérifier par la boîte (voir [api.md](api.md#mise-à-jour-en-ligne));
+   - `totobox-X.Y.Z-hors-ligne-complet.bin` (0x0) et `totobox-X.Y.Z-hors-ligne-firmware.bin` (0x10000): la [variante hors ligne](#variante-hors-ligne), avec la même page (`page-web.bin`); elle n'est jamais proposée en mise à jour en ligne;
    - `totobox-X.Y.Z-decoupe.zip`: DXF et gabarits PDF du boîtier; `SHA256SUMS.txt`.
 
 Une version publiée ainsi est proposée aux boîtes par leur page (bandeau « Nouvelle version de la boîte »), qui s'installe en ligne. Les versions antérieures à la mise à jour en ligne (1.0.x) s'installent une fois par USB.
@@ -110,7 +129,7 @@ Le reste (audio, NFC, LEDs, réseau, veille) se valide sur la boîte. Scénarios
 
 ## Dépendances
 
-Les versions sont figées dans [platformio.ini](../platformio.ini): plateforme `espressif32` 7.1.3, ArduinoJson 7.4.3, Adafruit PN532 1.3.4, ESP32-audioI2S 2.3.0. Le firmware dépend de détails précis d'ESP32-audioI2S (position de reprise en octets, voir [AGENTS.md](../AGENTS.md)): monter une version demande de retester la lecture, la reprise et le retrait de carte SD sur la boîte.
+Les versions sont figées dans [platformio.ini](../platformio.ini): plateforme `espressif32` 7.1.3, ArduinoJson 7.4.3, Adafruit PN532 1.3.4, ESP32-audioI2S 2.3.0, PubSubClient 2.8 (Home Assistant). Le firmware dépend de détails précis d'ESP32-audioI2S (position de reprise en octets, voir [AGENTS.md](../AGENTS.md)): monter une version demande de retester la lecture, la reprise et le retrait de carte SD sur la boîte.
 
 ## Règles de code
 

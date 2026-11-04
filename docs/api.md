@@ -36,6 +36,7 @@ Erreurs communes: `403 locked` (réglages verrouillés), `503 busy_playing` (acc
 
 `GET /api/status` renvoie notamment:
 
+- `features`: fonctions compilées, `onlineUpdate` (mise à jour en ligne) et `homeAssistant`; toutes deux à `false` dans la variante hors ligne (voir [development.md](development.md#variante-hors-ligne)), où `updateRepo` est vide, `homeAssistant` et `update` absents, et `POST /api/update` répond `404 not_available`. Absent sur les firmwares d'avant 1.3.0: tout est présent;
 - `firmwareVersion` (version publiée, voir [CHANGELOG.md](../CHANGELOG.md)) et `firmwareBuild` (commit compilé, `-dirty` si modifié);
 - `state`, `audioPlaying`, `stoppedRemotely` (lecture arrêtée depuis Home Assistant, carte toujours posée: `state` vaut `paused`), `activeCardUid`, `activeCardLabel`, `activeMediaPath`, `activeTrackIndex`, `activeTrackCount`, `activePositionMs`;
 - `currentVolume`, `volumeMin`, `volumeMax`;

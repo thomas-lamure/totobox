@@ -41,7 +41,7 @@ This repository holds the firmware (ESP32-S3, HermitX CardReader board), the par
    pio run -t uploadfs    # web interface
    ```
 
-   Without PlatformIO: write the `totobox-X.Y.Z-complet.bin` image of the [latest release](https://github.com/thomas-lamure/totobox/releases/latest) at 0x0, with `esptool.py` or from the browser ([esptool-js](https://espressif.github.io/esptool-js/)). Each release's notes also explain how to update while keeping the settings.
+   Without PlatformIO: write the `totobox-X.Y.Z-complet.bin` image of the [latest release](https://github.com/thomas-lamure/totobox/releases/latest) at 0x0, with `esptool.py` or from the browser ([esptool-js](https://espressif.github.io/esptool-js/)). Each release's notes also explain how to update while keeping the settings. For a box that must never contact any server (no GitHub, no Home Assistant), use `totobox-X.Y.Z-hors-ligne-complet.bin`.
 
 5. **First start**: format the microSD card as FAT32, then join the `TotoBox-XXXX` Wi-Fi access point with a phone; the settings page opens by itself. See [docs/usage.md](docs/usage.md).
 

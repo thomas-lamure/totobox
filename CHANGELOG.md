@@ -14,6 +14,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ### Développement
 
+- Variante sans connexion vers l'extérieur: `make firmware OFFLINE=1` (environnement `totobox-s3-offline`, `TOTOBOX_OFFLINE`) exclut de la compilation la mise à jour en ligne (GitHub, NTP) et Home Assistant. La page en cache les réglages (`features` dans `/api/status`). Faux serveur: `make mock OFFLINE=1`. Les Releases la fournissent aussi (`totobox-X.Y.Z-hors-ligne-complet.bin` et `-hors-ligne-firmware.bin`).
 - Atelier de rendu du boîtier (`hardware/tools/render/`, `make render`): rendus three.js du modèle Onshape, base des illustrations du README.
 
 ### Boîtier

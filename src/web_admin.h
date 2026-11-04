@@ -14,7 +14,10 @@
 #include "app_types.h"
 #include "config_store.h"
 #include "id3_stripper.h"
+#include "totobox_config.h"
+#if !TOTOBOX_OFFLINE
 #include "update_service.h"
+#endif
 
 class WebAdmin {
  public:
@@ -30,7 +33,9 @@ class WebAdmin {
   // Formate une carte SD illisible (AudioService): renvoie true si elle est prête ensuite.
   void setSdFormatter(std::function<bool()> formatter) { sdFormatter_ = std::move(formatter); }
   // Mise à jour en ligne (POST /api/update, état dans /api/status).
+#if !TOTOBOX_OFFLINE
   void setUpdateService(UpdateService* updater) { updater_ = updater; }
+#endif
 
  private:
   struct LibrarySummary {
@@ -133,5 +138,7 @@ class WebAdmin {
   bool sdStatsValid_ = false;
   std::function<void()> uploadTick_;
   std::function<bool()> sdFormatter_;
+#if !TOTOBOX_OFFLINE
   UpdateService* updater_ = nullptr;
+#endif
 };

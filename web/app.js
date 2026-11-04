@@ -2127,7 +2127,7 @@ function renderDeviceInfo() {
     ["Lecteur NFC", s.nfcReady ? "OK" : "Non détecté"],
     ["Cartes associées", String(s.bindingsCount ?? bindings().length)],
     // Version et commit compilé: à donner dans un signalement de problème.
-    ["Firmware", s.firmwareVersion ? `${s.firmwareVersion} (${s.firmwareBuild || "?"})${newerFirmware() ? ` · ${firmware.release.version} disponible` : ""}` : "—"],
+    ["Firmware", s.firmwareVersion ? `${s.firmwareVersion} (${s.firmwareBuild || "?"})${hasFeature("onlineUpdate") ? "" : " · hors ligne"}${newerFirmware() ? ` · ${firmware.release.version} disponible` : ""}` : "—"],
   ];
   $("device-info").innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
   $("firmware-open").hidden = !newerFirmware();
@@ -2153,6 +2153,8 @@ $("open-settings").addEventListener("click", async () => {
   $("settings-update-last").textContent = c.lastUpdateCheck
     ? `Dernière recherche par la boîte : ${new Date(c.lastUpdateCheck * 1000).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}.`
     : "";
+  $("settings-updates").hidden = !hasFeature("onlineUpdate");
+  $("settings-ha").hidden = !hasFeature("homeAssistant");
   $("ha-enabled").checked = Boolean(c.haEnabled);
   $("ha-address").value = c.haAddress || "";
   $("mqtt-user").value = c.mqttUser || "";
@@ -2175,6 +2177,13 @@ const HA_ERRORS = {
   unreachable: "Aucun broker MQTT ne répond à cette adresse. Le module Mosquitto est-il installé et démarré ?",
   auth: "Utilisateur ou mot de passe MQTT refusé par le broker.",
 };
+
+// Fonction compilée dans le firmware: la variante hors ligne n'a ni mise à jour en ligne ni Home Assistant.
+// Un firmware plus ancien, sans `features`, a tout.
+function hasFeature(name) {
+  const features = app.status && app.status.features;
+  return !features || features[name] !== false;
+}
 
 // État de la liaison enregistrée (pas des changements en cours de saisie).
 function renderHaState() {
@@ -2457,7 +2466,8 @@ function setupSteps() {
   if (!(app.status && app.status.sdReady) && !setup.skipSd) steps.push("sd");
   steps.push("name", "lock");
   if (setup.backup && setup.backup.exists) steps.push("restore");
-  steps.push("updates", "wifi", "done");
+  if (hasFeature("onlineUpdate")) steps.push("updates");
+  steps.push("wifi", "done");
   return steps;
 }
 
