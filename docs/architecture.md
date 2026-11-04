@@ -35,6 +35,7 @@ flowchart LR
 - `access_lock`: verrouillage des réglages (cartes maîtresses, code de secours haché, limitation des essais).
 - `Id3Stripper`: retire tags ID3 et pochettes des MP3 pendant l'écriture des uploads.
 - `UpdateService`: mise à jour en ligne demandée par la page, ou cherchée par la boîte une fois par jour en mode automatique (planifiée par `main.cpp` selon `update_rules::shouldAutoCheck`, heure par NTP) (téléchargement HTTPS depuis les Releases GitHub dans une tâche du cœur 0, empreintes vérifiées, partition OTA inactive, puis redémarrage); `update_rules` décide de ce qui est accepté (dépôt officiel, version plus récente, tailles, empreintes).
+- `HomeAssistantService`: liaison MQTT avec Home Assistant (PubSubClient dans une tâche du cœur 0: résolution du nom, connexion, reconnexion de 10 à 60 s, publication, commandes); `loop()` lui confie l'état et les cartes posées ou retirées et exécute les commandes (volume, arrêt); `ha_rules` décide de l'adresse, des sujets, de la découverte et des commandes acceptées (voir [home-assistant.md](home-assistant.md)).
 - `library_paths`: règles des chemins de la bibliothèque (tout reste dans `/content`, noms nettoyés, doublons, corbeille), appliquées par `WebAdmin` avant tout accès à la carte SD.
 - `card_flow`: suivi des cartes NFC (carte maîtresse, inconnue ou associée, retrait confirmé après 250 ms, carte remplacée par une autre, signets, reprise au retour de la carte SD); `main.cpp` exécute ses décisions (lecture, LEDs, NVS).
 - `volume_rules`, `led_layout`, `retry_delay`: cran de molette et jauge, ordre des LEDs et chenillard, attente entre deux reconnexions Wi-Fi.
@@ -90,7 +91,7 @@ Surimpressions temporaires (5 s): jauge blanche du volume, de la limite basse (v
 ## Répartition V1 / V2
 
 - V1: lecture locale SD, NFC, LEDs, encodeur, web admin local, verrouillage.
-- V2: nouveaux bindings de type `home_assistant` sans casser les bindings `sd_local`.
+- V2: la boîte se montre dans Home Assistant par MQTT (`HomeAssistantService`), sans rien changer à la lecture locale. Plus tard: cartes « commande » (`PlaybackMode::HomeAssistant`), sans casser les bindings `sd_local`.
 
 ## Pour aller plus loin
 

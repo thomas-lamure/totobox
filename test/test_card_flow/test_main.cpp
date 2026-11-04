@@ -190,6 +190,62 @@ void test_unknown_card_bound_from_the_page_starts_playing() {
   TEST_ASSERT_FALSE(shouldPlayNewlyBound(runtime, bindings));
 }
 
+void test_remote_stop_keeps_the_bookmark_and_does_not_restart() {
+  onCardPresented(runtime, config, bindings, "04A1B2C3");
+  runtime.state = DeviceState::Playing;
+  const Bookmark stoppedAt = bookmark(1, 83000, 1327000);
+  TEST_ASSERT_TRUE(onRemoteStop(runtime, findBinding(bindings, "04A1B2C3"), &stoppedAt));
+  TEST_ASSERT_EQUAL_UINT32(1327000, bindings[0].resumeByte);
+  TEST_ASSERT_TRUE(runtime.state == DeviceState::Paused);
+  TEST_ASSERT_TRUE(runtime.stoppedRemotely);
+  TEST_ASSERT_EQUAL_STRING("04A1B2C3", runtime.activeCardUid.c_str());
+
+  // La carte reste posée: le lecteur la revoit sans rien relancer.
+  const NfcStep step = seen("04A1B2C3", 1000);
+  TEST_ASSERT_FALSE(step.present);
+  TEST_ASSERT_FALSE(step.stopCurrent);
+
+  // Retirée (rien ne joue: signet inchangé), puis reposée: la lecture reprend au signet.
+  TEST_ASSERT_TRUE(noCard(1000 + kGraceMs).stopCurrent);
+  TEST_ASSERT_FALSE(onCardRemoved(runtime, findBinding(bindings, "04A1B2C3"), nullptr));
+  TEST_ASSERT_FALSE(runtime.stoppedRemotely);
+  TEST_ASSERT_TRUE(runtime.state == DeviceState::Ready);
+  TEST_ASSERT_EQUAL_UINT32(1327000, bindings[0].resumeByte);
+  TEST_ASSERT_TRUE(seen("04A1B2C3", 2000).present);
+  TEST_ASSERT_TRUE(onCardPresented(runtime, config, bindings, "04A1B2C3") == Presented::Play);
+  TEST_ASSERT_FALSE(runtime.stoppedRemotely);
+}
+
+void test_remote_stop_cancels_the_resume_after_the_sd_card() {
+  onCardPresented(runtime, config, bindings, "04A1B2C3");
+  onSdLost(runtime, findBinding(bindings, "04A1B2C3"), bookmark(1, 90000, 1400000));
+  runtime.sdReady = false;
+  runtime.state = DeviceState::Error;
+  TEST_ASSERT_TRUE(onRemoteStop(runtime, findBinding(bindings, "04A1B2C3"), nullptr));
+  TEST_ASSERT_EQUAL_UINT32(1400000, bindings[0].resumeByte);  // signet de la carte SD gardé
+  TEST_ASSERT_TRUE(runtime.state == DeviceState::Error);      // la carte SD manque toujours
+  runtime.sdReady = true;
+  TEST_ASSERT_FALSE(shouldResumeAfterSd(runtime, false));
+}
+
+void test_remote_stop_without_playback_does_nothing() {
+  // Aucune carte.
+  TEST_ASSERT_FALSE(onRemoteStop(runtime, nullptr, nullptr));
+  // Carte associée posée, mais rien ne joue (lecture finie).
+  onCardPresented(runtime, config, bindings, "04A1B2C3");
+  runtime.state = DeviceState::Ready;
+  TEST_ASSERT_FALSE(onRemoteStop(runtime, findBinding(bindings, "04A1B2C3"), nullptr));
+  TEST_ASSERT_FALSE(runtime.stoppedRemotely);
+  TEST_ASSERT_TRUE(runtime.state == DeviceState::Ready);
+  // Carte inconnue posée.
+  onCardPresented(runtime, config, bindings, "0A0B0C0D");
+  const Bookmark stoppedAt = bookmark(0, 1000, 2000);
+  TEST_ASSERT_FALSE(onRemoteStop(runtime, nullptr, &stoppedAt));
+  // Signet d'une autre carte que l'active: refusé.
+  TEST_ASSERT_FALSE(onRemoteStop(runtime, findBinding(bindings, "04D4E5F6"), &stoppedAt));
+  TEST_ASSERT_EQUAL_UINT32(0, bindings[1].resumeByte);
+}
+
 void test_uid_is_formatted_in_uppercase_hex() {
   const uint8_t uid[] = {0x04, 0xA1, 0x0B, 0xFF};
   TEST_ASSERT_EQUAL_STRING("04A10BFF", formatUid(uid, sizeof(uid)).c_str());
@@ -213,6 +269,9 @@ int main() {
   RUN_TEST(test_no_resume_if_the_card_was_removed_meanwhile);
   RUN_TEST(test_sd_lost_without_card_keeps_nothing);
   RUN_TEST(test_unknown_card_bound_from_the_page_starts_playing);
+  RUN_TEST(test_remote_stop_keeps_the_bookmark_and_does_not_restart);
+  RUN_TEST(test_remote_stop_cancels_the_resume_after_the_sd_card);
+  RUN_TEST(test_remote_stop_without_playback_does_nothing);
   RUN_TEST(test_uid_is_formatted_in_uppercase_hex);
   return UNITY_END();
 }

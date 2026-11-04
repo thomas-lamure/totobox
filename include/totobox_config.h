@@ -83,6 +83,9 @@ constexpr char kUpdateRepo[] = "thomas-lamure/totobox";
 // Taille maximale de la page web téléchargée (index.html.gz): la partition LittleFS en garde deux copies.
 constexpr uint32_t kUpdateMaxPageBytes = 80 * 1024;
 
+// Home Assistant (MQTT, docs/home-assistant.md): adresse proposée tant que l'utilisateur n'en a pas choisi une autre.
+constexpr char kHaDefaultAddress[] = "homeassistant.local";
+
 // Point d'accès de secours: nom "TotoBox-" + fin de l'adresse MAC, mot de passe tiré au hasard au premier
 // démarrage (ConfigStore::ensureAccessPointDefaults). Anciennes valeurs fixes, remplacées une fois au démarrage.
 constexpr char kApSsidPrefix[] = "TotoBox-";

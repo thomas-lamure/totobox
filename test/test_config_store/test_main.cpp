@@ -38,6 +38,10 @@ void test_empty_storage_gives_defaults() {
   TEST_ASSERT_TRUE(config.updateNotify);
   TEST_ASSERT_FALSE(config.autoUpdate);
   TEST_ASSERT_EQUAL_UINT32(0, config.lastUpdateCheck);
+  TEST_ASSERT_FALSE(config.haEnabled);
+  TEST_ASSERT_EQUAL_STRING("homeassistant.local", config.haAddress.c_str());
+  TEST_ASSERT_TRUE(config.mqttUser.isEmpty());
+  TEST_ASSERT_TRUE(config.mqttPassword.isEmpty());
   TEST_ASSERT_EQUAL_UINT32(0, store.loadBindings().size());
 }
 
@@ -50,6 +54,9 @@ void test_config_before_updates_gets_their_defaults() {
   TEST_ASSERT_TRUE(config.updateNotify);
   TEST_ASSERT_FALSE(config.autoUpdate);
   TEST_ASSERT_EQUAL_UINT32(0, config.lastUpdateCheck);
+  // Ni Home Assistant (1.2.x et avant).
+  TEST_ASSERT_FALSE(config.haEnabled);
+  TEST_ASSERT_EQUAL_STRING("homeassistant.local", config.haAddress.c_str());
 }
 
 void test_config_round_trip() {
@@ -72,6 +79,10 @@ void test_config_round_trip() {
   saved.updateNotify = false;
   saved.autoUpdate = true;
   saved.lastUpdateCheck = 1793180000;
+  saved.haEnabled = true;
+  saved.haAddress = "mqtt://192.168.1.20:1884";
+  saved.mqttUser = "totobox";
+  saved.mqttPassword = "mqtt-secret";
 
   ConfigStore store;
   store.begin();
@@ -99,6 +110,10 @@ void test_config_round_trip() {
   TEST_ASSERT_FALSE(config.updateNotify);
   TEST_ASSERT_TRUE(config.autoUpdate);
   TEST_ASSERT_EQUAL_UINT32(1793180000, config.lastUpdateCheck);
+  TEST_ASSERT_TRUE(config.haEnabled);
+  TEST_ASSERT_EQUAL_STRING("mqtt://192.168.1.20:1884", config.haAddress.c_str());
+  TEST_ASSERT_EQUAL_STRING("totobox", config.mqttUser.c_str());
+  TEST_ASSERT_EQUAL_STRING("mqtt-secret", config.mqttPassword.c_str());
 }
 
 void test_legacy_single_master_card_is_migrated() {

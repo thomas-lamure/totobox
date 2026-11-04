@@ -10,6 +10,7 @@
 #include <mdns.h>
 
 #include "card_backup_sd.h"
+#include "ha_rules.h"
 #include "library_paths.h"
 #include "update_rules.h"
 #include "version.h"
@@ -332,9 +333,18 @@ void WebAdmin::handleStatus() {
   doc["activePositionMs"] = runtime_.activePositionMs;
   doc["activeTrackCount"] = runtime_.activeTrackCount;
   doc["audioPlaying"] = runtime_.audioPlaying;
+  // Lecture arrêtée depuis Home Assistant, carte toujours posée: la page affiche « Arrêtée ».
+  doc["stoppedRemotely"] = runtime_.stoppedRemotely;
   const bool locked = access_lock::isLocked(config_, runtime_);
   doc["lockEnabled"] = config_.lockEnabled;
   doc["locked"] = locked;
+  // Liaison Home Assistant: un réglage, donc cachée quand la boîte est verrouillée.
+  if (!locked) {
+    JsonObject homeAssistant = doc["homeAssistant"].to<JsonObject>();
+    homeAssistant["enabled"] = config_.haEnabled;
+    homeAssistant["state"] = runtime_.haState;
+    homeAssistant["error"] = runtime_.haError;
+  }
   // Verrouillée: seuls la lecture en cours et le volume restent visibles.
   doc["lastUnknownCardUid"] = locked ? "" : runtime_.lastUnknownCardUid;
   for (const CardBinding& binding : bindings_) {
@@ -397,6 +407,18 @@ void WebAdmin::handlePostConfig() {
   const String apPassword = String(static_cast<const char*>(doc["apPassword"] | config_.apPassword.c_str()));
   const String hostname =
       network_names::normalizeHostname(String(static_cast<const char*>(doc["hostname"] | config_.hostname.c_str())));
+  // Home Assistant: mot de passe absent = inchangé, vide = effacé (comme le Wi-Fi).
+  const bool haEnabled = doc["haEnabled"] | config_.haEnabled;
+  String haAddress = String(static_cast<const char*>(doc["haAddress"] | config_.haAddress.c_str()));
+  haAddress.trim();
+  String mqttUser = String(static_cast<const char*>(doc["mqttUser"] | config_.mqttUser.c_str()));
+  mqttUser.trim();
+  const String mqttPassword = String(static_cast<const char*>(doc["mqttPassword"] | config_.mqttPassword.c_str()));
+  ha_rules::Broker broker;
+  // Adresse contrôlée quand elle change, et quand la liaison est activée (adresse enregistrée jamais vérifiée).
+  const char* haAddressError = haAddress != config_.haAddress || (haEnabled && !config_.haEnabled)
+                                   ? ha_rules::parseAddress(haAddress, broker)
+                                   : nullptr;
 
   // Validation avant toute modification: un réglage refusé ne doit rien changer. Seuls les champs modifiés
   // sont contrôlés: une valeur déjà enregistrée (ancienne version, règles plus souples) ne bloque pas les
@@ -412,6 +434,12 @@ void WebAdmin::handlePostConfig() {
     error = "invalid_ap_password";
   } else if (hostname != config_.hostname && !network_names::isValidHostname(hostname)) {
     error = "invalid_hostname";
+  } else if (haAddressError != nullptr) {
+    error = strcmp(haAddressError, "tls_unsupported") == 0 ? "ha_tls_unsupported" : "invalid_ha_address";
+  } else if (mqttUser.length() > ha_rules::kMaxCredentialLength) {
+    error = "invalid_mqtt_user";
+  } else if (mqttPassword.length() > ha_rules::kMaxCredentialLength) {
+    error = "invalid_mqtt_password";
   }
   if (error != nullptr) {
     logLine("web", "Réglages refusés: %s", error);
@@ -442,7 +470,17 @@ void WebAdmin::handlePostConfig() {
   config_.hostname = hostname;
   config_.updateNotify = doc["updateNotify"] | config_.updateNotify;
   config_.autoUpdate = doc["autoUpdate"] | config_.autoUpdate;
+  const bool haChanged = haEnabled != config_.haEnabled || haAddress != config_.haAddress ||
+                         mqttUser != config_.mqttUser || mqttPassword != config_.mqttPassword;
+  config_.haEnabled = haEnabled;
+  config_.haAddress = haAddress;
+  config_.mqttUser = mqttUser;
+  config_.mqttPassword = mqttPassword;
   store_.saveConfig(config_);
+  // Appliqué par le service MQTT (reconnexion, ou retrait de l'appareil dans Home Assistant).
+  if (haChanged) {
+    runtime_.haConfigChanged = true;
+  }
 
   // Appliqué sans redémarrage: le réseau par NetworkService (après l'envoi de cette réponse), le nom tout de
   // suite pour le mDNS (le nom DHCP suit à la prochaine connexion).
@@ -810,6 +848,11 @@ void WebAdmin::sendJsonConfig() {
   doc["updateNotify"] = config_.updateNotify;
   doc["autoUpdate"] = config_.autoUpdate;
   doc["lastUpdateCheck"] = config_.lastUpdateCheck;
+  doc["haEnabled"] = config_.haEnabled;
+  doc["haAddress"] = config_.haAddress;
+  doc["mqttUser"] = config_.mqttUser;
+  // Jamais renvoyé: la page sait seulement s'il y en a un.
+  doc["mqttPasswordSet"] = !config_.mqttPassword.isEmpty();
   doc["lockEnabled"] = config_.lockEnabled;
   JsonArray lockCards = doc["lockCards"].to<JsonArray>();
   for (const MasterCard& card : config_.lockCards) {

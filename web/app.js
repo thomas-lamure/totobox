@@ -74,6 +74,10 @@ const ERRORS = {
   invalid_wifi_password: "Le mot de passe du Wi-Fi doit faire de 8 à 63 caractères.",
   invalid_ap_ssid: "Nom du point d'accès invalide (1 à 32 caractères).",
   invalid_ap_password: "Le mot de passe du point d'accès doit faire de 8 à 63 caractères.",
+  invalid_ha_address: "Adresse de Home Assistant illisible: nom, IP, ou adresse de la page Home Assistant.",
+  ha_tls_unsupported: "Les connexions chiffrées (mqtts://) ne sont pas encore prises en charge: utilise mqtt:// (port 1883).",
+  invalid_mqtt_user: "Utilisateur MQTT trop long (64 caractères au plus).",
+  invalid_mqtt_password: "Mot de passe MQTT trop long (64 caractères au plus).",
   invalid_hostname: "Nom réseau invalide: lettres, chiffres et tirets (sans tiret au début ni à la fin).",
 };
 
@@ -689,6 +693,7 @@ function renderHome() {
     let label = info.label;
     if (status.state === "error" && status.sdReady === false) label = sdUnreadable() ? "Carte SD illisible" : "Carte SD absente";
     else if (status.state === "error" && status.nfcReady === false) label = "Lecteur NFC absent";
+    else if (status.state === "paused" && status.stoppedRemotely) label = "Arrêtée";
     pill.textContent = app.online ? label : "Hors ligne";
   }
 
@@ -706,6 +711,7 @@ function renderHome() {
   renderNowPlaying();
   renderVolume();
   renderTiles();
+  renderHaState();
 
   // Carte SD absente ou illisible: rien à gérer; le bandeau du haut le dit et propose le formatage.
   $("open-files").hidden = Boolean(status && status.sdReady === false);
@@ -726,7 +732,7 @@ function renderNowPlaying() {
   const playing = status.state === "playing";
   $("now-cover").className = `cover ${playing ? "tone-green" : "tone-amber"}`;
   $("now-cover").innerHTML = icon(playing ? "play" : "pause");
-  $("now-state").textContent = playing ? "En lecture" : "En pause";
+  $("now-state").textContent = playing ? "En lecture" : status.stoppedRemotely ? "Arrêtée depuis Home Assistant" : "En pause";
   $("now-title").textContent =
     status.activeCardLabel || (binding && binding.label) || prettyName(binding ? binding.mediaPath : status.activeMediaPath) || "Histoire";
   const track = status.activeTrackCount > 1 ? `Piste ${status.activeTrackIndex + 1}/${status.activeTrackCount} · ` : "";
@@ -2147,6 +2153,13 @@ $("open-settings").addEventListener("click", async () => {
   $("settings-update-last").textContent = c.lastUpdateCheck
     ? `Dernière recherche par la boîte : ${new Date(c.lastUpdateCheck * 1000).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}.`
     : "";
+  $("ha-enabled").checked = Boolean(c.haEnabled);
+  $("ha-address").value = c.haAddress || "";
+  $("mqtt-user").value = c.mqttUser || "";
+  $("mqtt-password").value = "";
+  $("mqtt-password").placeholder = c.mqttPasswordSet ? "Inchangé" : "Aucun";
+  $("ha-fields").hidden = !c.haEnabled;
+  renderHaState();
   $("settings-error").hidden = true;
   renderSettingsLock();
   renderDeviceInfo();
@@ -2154,6 +2167,31 @@ $("open-settings").addEventListener("click", async () => {
   refreshBackupInfo();
 });
 
+
+const HA_ERRORS = {
+  invalid_address: "Adresse illisible.",
+  no_wifi: "La boîte n'est pas connectée au Wi-Fi de la maison.",
+  dns: "Adresse introuvable sur le réseau.",
+  unreachable: "Aucun broker MQTT ne répond à cette adresse. Le module Mosquitto est-il installé et démarré ?",
+  auth: "Utilisateur ou mot de passe MQTT refusé par le broker.",
+};
+
+// État de la liaison enregistrée (pas des changements en cours de saisie).
+function renderHaState() {
+  const ha = app.status && app.status.homeAssistant;
+  const line = $("ha-state");
+  if (!ha || !ha.enabled) {
+    line.textContent = "";
+    return;
+  }
+  const texts = { off: "", connecting: "Connexion à Home Assistant…", connected: "Connectée à Home Assistant." };
+  line.textContent = ha.state === "error" ? HA_ERRORS[ha.error] || `Erreur : ${ha.error}.` : texts[ha.state] ?? "";
+  line.style.color = ha.state === "error" ? "var(--red)" : "";
+}
+
+$("ha-enabled").addEventListener("change", () => {
+  $("ha-fields").hidden = !$("ha-enabled").checked;
+});
 
 function byteLength(value) {
   return new TextEncoder().encode(value).length;
@@ -2194,11 +2232,18 @@ $("settings-save").addEventListener("click", async () => {
     hostname,
     updateNotify: $("settings-update-notify").checked,
     autoUpdate: $("settings-auto-update").checked,
+    haEnabled: $("ha-enabled").checked,
+    haAddress: $("ha-address").value.trim() || "homeassistant.local",
+    mqttUser: $("mqtt-user").value.trim(),
   };
   // Champ vide = mot de passe inchangé (la boîte ne renvoie jamais les mots de passe).
   const secrets = {};
   if (wifiPassword) secrets.wifiPassword = wifiPassword;
   if (apPassword) secrets.apPassword = apPassword;
+  const mqttPassword = $("mqtt-password").value;
+  if (mqttPassword) secrets.mqttPassword = mqttPassword;
+  // Sans utilisateur, pas de mot de passe: l'ancien est effacé.
+  else if (!payload.mqttUser && before.mqttPasswordSet) secrets.mqttPassword = "";
   const networkChanged =
     wifiSsid !== (before.wifiSsid || "") || Boolean(wifiPassword) || apSsid !== before.apSsid || Boolean(apPassword);
   const hostnameChanged = hostname !== before.hostname;

@@ -54,6 +54,7 @@ This repository holds the firmware (ESP32-S3, HermitX CardReader board), the par
 | Editing the 3D model | [hardware/onshape/README.md](hardware/onshape/README.md) |
 | Building, testing, contributing | [docs/development.md](docs/development.md), [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Firmware internals | [docs/architecture.md](docs/architecture.md), [AGENTS.md](AGENTS.md) (rules and known pitfalls) |
+| Linking the box to Home Assistant (French) | [docs/home-assistant-mqtt.md](docs/home-assistant-mqtt.md) |
 | HTTP/JSON API | [docs/api.md](docs/api.md) |
 | Preparing boxes in series | [docs/production.md](docs/production.md) |
 

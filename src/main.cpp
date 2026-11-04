@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <esp_mac.h>
 #include <esp_partition.h>
+#include <WiFi.h>
 #include <time.h>
 
 #include <vector>
@@ -13,6 +14,8 @@
 #include "config_store.h"
 #include "factory_data.h"
 #include "factory_reset.h"
+#include "ha_rules.h"
+#include "ha_service.h"
 #include "secret_channel.h"
 #include "led_controller.h"
 #include "logger.h"
@@ -42,6 +45,7 @@ AudioService audio;
 WebAdmin* webAdmin = nullptr;
 NetworkService network;
 UpdateService updater;
+HomeAssistantService homeAssistant;
 PowerManager power;
 
 CardBinding* findBindingByUid(const String& uid) {
@@ -155,6 +159,9 @@ void handleKnownCard(CardBinding& binding) {
 void handleCardPresented(const String& uid) {
   power.noteActivity(runtime);
   logLine("main", "Carte posée %s", uid.c_str());
+  if (ha_rules::shouldPublishCard(config, uid)) {
+    homeAssistant.notifyCardPresented(uid);
+  }
 
   switch (card_flow::onCardPresented(runtime, config, bindings, uid)) {
     case card_flow::Presented::Unlock: {
@@ -179,6 +186,9 @@ void handleCardPresented(const String& uid) {
 void handleCardRemoved() {
   power.noteActivity(runtime);
   logLine("main", "Carte retirée %s", runtime.activeCardUid.c_str());
+  if (ha_rules::shouldPublishCard(config, runtime.activeCardUid)) {
+    homeAssistant.notifyCardRemoved(runtime.activeCardUid);
+  }
 
   card_flow::Bookmark stoppedAt;
   const bool wasPlaying = audio.isPlaying();
@@ -196,6 +206,8 @@ void handleCardRemoved() {
 
 void showVolumeOverlay();
 
+constexpr uint32_t kHaShutdownMs = 500;
+
 // Veille profonde: termine proprement ce qui doit l'être, éteint les LEDs et dort (ne revient pas).
 // Une carte encore posée est confiée au PowerManager pour ne pas réveiller la boîte en boucle.
 void goToSleep() {
@@ -207,6 +219,8 @@ void goToSleep() {
   }
   audio.stop();
   leds.off();
+  // Home Assistant voit l'appareil indisponible tout de suite (sinon après l'expiration de la connexion).
+  homeAssistant.shutdown(kHaShutdownMs);
   power.sleep(nfc, runtime.activeCardUid);
 }
 
@@ -253,6 +267,97 @@ void saveVolumeIfIdle() {
   if (runtime.volumeSaveDue && millis() - runtime.lastVolumeChangeMs >= totobox::kVolumeSaveDelayMs) {
     configStore.saveConfig(config);
     runtime.volumeSaveDue = false;
+  }
+}
+
+// ---------- Home Assistant ----------
+
+// L'état est confié au service MQTT à ce rythme (il publie lui-même ce qui a changé).
+constexpr uint32_t kHaUpdateMs = 250;
+
+// Arrêt demandé depuis Home Assistant: comme un retrait de carte, mais la carte reste posée (pas de relance).
+void stopFromRemote() {
+  card_flow::Bookmark stoppedAt;
+  const bool wasPlaying = audio.isPlaying();
+  if (wasPlaying) {
+    stoppedAt.track = audio.currentTrackIndex();
+    const AudioService::ResumePoint point = audio.pause();
+    stoppedAt.ms = point.ms;
+    stoppedAt.byte = point.byte;
+  }
+  if (card_flow::onRemoteStop(runtime, findBindingByUid(runtime.activeCardUid), wasPlaying ? &stoppedAt : nullptr)) {
+    persistBindings();
+    logLine("ha", "Lecture arrêtée depuis Home Assistant (%s)", runtime.activeCardUid.c_str());
+  }
+}
+
+ha_rules::State haState() {
+  ha_rules::State state;
+  state.state = ha_rules::stateName(runtime);
+  // Carte maîtresse posée: ni son UID ni son nom.
+  if (ha_rules::shouldPublishCard(config, runtime.activeCardUid)) {
+    state.card = runtime.activeCardUid;
+    const CardBinding* binding = findBindingByUid(runtime.activeCardUid);
+    if (binding != nullptr) {
+      state.story = binding->label.isEmpty() ? binding->mediaPath : binding->label;
+    }
+  }
+  if (!state.story.isEmpty() && runtime.activeTrackCount > 0) {
+    state.track = runtime.activeTrackIndex + 1;
+    state.tracks = runtime.activeTrackCount;
+    state.positionSec = runtime.activePositionMs / 1000;
+  }
+  state.volume = config.currentVolume;
+  state.volumeMin = config.volumeMin;
+  state.volumeMax = config.volumeMax;
+  state.sd = sdStateToString(runtime.sdState);
+  state.locked = access_lock::isLocked(config, runtime);
+  state.rssi = runtime.wifiConnected ? static_cast<int8_t>(WiFi.RSSI()) : 0;
+  return state;
+}
+
+void homeAssistantStep() {
+  if (runtime.haConfigChanged) {
+    runtime.haConfigChanged = false;
+    homeAssistant.configure(config);
+  }
+
+  static uint32_t lastUpdateMs = 0;
+  if (millis() - lastUpdateMs >= kHaUpdateMs) {
+    lastUpdateMs = millis();
+    ha_rules::DeviceInfo device;
+    device.name = config.hostname;
+    device.version = totobox::kFirmwareVersion;
+    device.url = "http://" + config.hostname + ".local/";
+    device.volumeMin = config.volumeMin;
+    device.volumeMax = config.volumeMax;
+    homeAssistant.update(runtime.wifiConnected, device, haState());
+    const HomeAssistantService::Status status = homeAssistant.status();
+    runtime.haState = status.state;
+    runtime.haError = status.error;
+  }
+
+  ha_rules::Command command;
+  while (homeAssistant.takeCommand(command)) {
+    // Pendant une mise à jour, rien ne joue et rien ne doit démarrer.
+    if (runtime.updating) {
+      continue;
+    }
+    power.noteActivity(runtime);
+    switch (command.type) {
+      case ha_rules::CommandType::Volume:
+        // Bornes relues ici: elles ont pu changer depuis la réception.
+        config.currentVolume = constrain(command.volume, config.volumeMin, config.volumeMax);
+        runtime.volumeSaveDue = true;
+        runtime.lastVolumeChangeMs = millis();
+        logLine("ha", "Volume %u %% depuis Home Assistant", config.currentVolume);
+        break;
+      case ha_rules::CommandType::Stop:
+        stopFromRemote();
+        break;
+      case ha_rules::CommandType::None:
+        break;
+    }
   }
 }
 
@@ -383,6 +488,11 @@ void setup() {
 
   // Le Wi-Fi se connecte en arrière-plan: le NFC et l'audio sont prêts sans attendre le réseau.
   network.begin(config, runtime);
+  // Home Assistant (MQTT) dans sa tâche du cœur 0; ne fait rien tant que la liaison est désactivée.
+  uint8_t staMac[6] = {};
+  esp_read_mac(staMac, ESP_MAC_WIFI_STA);
+  homeAssistant.begin(staMac);
+  homeAssistant.configure(config);
   // Heure par NTP (une fois le Wi-Fi de la maison rejoint): date de la dernière recherche de mise à jour.
   configTime(0, 0, "pool.ntp.org", "time.google.com");
 
@@ -445,10 +555,12 @@ void loop() {
   // Mise à jour en ligne installée: redémarrage sur le nouveau firmware.
   if (updater.restartDue()) {
     audio.stop();
+    homeAssistant.shutdown(kHaShutdownMs);
     ESP.restart();
   }
   runtime.updating = updater.busy();
   autoUpdateStep();
+  homeAssistantStep();
 
   syncSdState();
   handleVolume();

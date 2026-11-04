@@ -478,6 +478,30 @@
           </div>
 
           <div class="stack">
+            <div class="group-title">Home Assistant</div>
+            <label class="switch">
+              <input id="ha-enabled" type="checkbox" />
+              <span><strong>Relier la boîte à Home Assistant</strong><span class="small muted">La boîte y apparaît (état, histoire en cours, volume, arrêt) et chaque carte posée devient une étiquette, utilisable dans les automatisations. Il faut un broker MQTT, comme le module Mosquitto de Home Assistant. Les histoires se lisent toujours sans Home Assistant.</span></span>
+            </label>
+            <div id="ha-fields" class="stack" hidden>
+              <label class="field">
+                Adresse de Home Assistant <span class="hint">ou du broker MQTT</span>
+                <input id="ha-address" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="homeassistant.local" />
+              </label>
+              <p class="small">L'adresse de la page Home Assistant convient (http://192.168.1.10:8123); mqtt://adresse:port pour un broker sur un autre port.</p>
+              <label class="field">
+                Utilisateur MQTT
+                <input id="mqtt-user" type="text" maxlength="64" autocomplete="off" autocapitalize="off" spellcheck="false" />
+              </label>
+              <label class="field">
+                Mot de passe MQTT
+                <input id="mqtt-password" type="password" maxlength="64" autocomplete="new-password" />
+              </label>
+              <p id="ha-state" class="small muted"></p>
+            </div>
+          </div>
+
+          <div class="stack">
             <div class="group-title">Boîte</div>
             <dl id="device-info" class="kv"></dl>
             <button id="firmware-open" class="btn" type="button" hidden></button>

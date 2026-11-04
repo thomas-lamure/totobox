@@ -18,6 +18,7 @@ void clearActiveCard(RuntimeState& runtime) {
   runtime.activeMediaPath = "";
   runtime.activeTrackIndex = 0;
   runtime.activePositionMs = 0;
+  runtime.stoppedRemotely = false;
 }
 
 }  // namespace
@@ -71,6 +72,21 @@ bool onStoryFinished(RuntimeState& runtime, CardBinding* binding) {
     return false;
   }
   storeBookmark(*binding, Bookmark());
+  return true;
+}
+
+bool onRemoteStop(RuntimeState& runtime, CardBinding* binding, const Bookmark* stoppedAt) {
+  if (binding == nullptr || runtime.activeCardUid.isEmpty() || binding->uid != runtime.activeCardUid ||
+      (stoppedAt == nullptr && !runtime.resumeAfterSd)) {
+    return false;
+  }
+  if (stoppedAt != nullptr) {
+    storeBookmark(*binding, *stoppedAt);
+  }
+  runtime.resumeAfterSd = false;
+  runtime.stoppedRemotely = true;
+  // Une erreur matérielle (carte SD absente) reste affichée.
+  runtime.state = restingState(runtime) == DeviceState::Ready ? DeviceState::Paused : DeviceState::Error;
   return true;
 }
 

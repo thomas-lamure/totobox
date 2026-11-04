@@ -57,6 +57,7 @@ Le dépôt contient le firmware (ESP32-S3, carte HermitX CardReader), l'interfac
 | modifier le modèle 3D | [hardware/onshape/README.md](hardware/onshape/README.md) |
 | compiler, tester, contribuer | [docs/development.md](docs/development.md), [CONTRIBUTING.md](CONTRIBUTING.md) |
 | comprendre le firmware | [docs/architecture.md](docs/architecture.md), [AGENTS.md](AGENTS.md) (règles et pièges connus) |
+| relier la boîte à Home Assistant | [docs/home-assistant-mqtt.md](docs/home-assistant-mqtt.md) |
 | piloter la boîte par script | [docs/api.md](docs/api.md) |
 | préparer des boîtes en série | [docs/production.md](docs/production.md) |
 

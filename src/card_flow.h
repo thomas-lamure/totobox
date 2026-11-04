@@ -46,6 +46,12 @@ bool onCardRemoved(RuntimeState& runtime, CardBinding* binding, const Bookmark* 
 // Histoire lue jusqu'au bout: le signet repart du début. Vrai s'il a changé.
 bool onStoryFinished(RuntimeState& runtime, CardBinding* binding);
 
+// Arrêt demandé à distance (Home Assistant), la carte restant posée: signet enregistré (`stoppedAt`: position de
+// la lecture arrêtée, nullptr si rien ne jouait), reprise après la carte SD annulée, état « en pause » jusqu'au
+// retrait de la carte. Sans carte associée ni lecture (ou reprise) en cours, ne fait rien et renvoie faux.
+// Vrai si l'arrêt a eu lieu.
+bool onRemoteStop(RuntimeState& runtime, CardBinding* binding, const Bookmark* stoppedAt);
+
 // Carte SD retirée pendant la lecture: signet gardé, reprise à la réinsertion si la carte reste posée.
 bool onSdLost(RuntimeState& runtime, CardBinding* binding, const Bookmark& stoppedAt);
 

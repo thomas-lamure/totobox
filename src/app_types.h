@@ -90,6 +90,12 @@ struct DeviceConfig {
   bool autoUpdate = false;
   // Dernière recherche automatique aboutie, en secondes depuis 1970 (heure NTP); 0 = jamais.
   uint32_t lastUpdateCheck = 0;
+  // Home Assistant par MQTT (docs/home-assistant.md): adresse telle que saisie (lue par ha_rules::parseAddress),
+  // identifiants du broker.
+  bool haEnabled = false;
+  String haAddress = totobox::kHaDefaultAddress;
+  String mqttUser;
+  String mqttPassword;
 };
 
 struct RuntimeState {
@@ -139,6 +145,15 @@ struct RuntimeState {
   String lastUnknownCardUid;
   // Histoire interrompue par le retrait de la carte SD: reprise à la réinsertion si sa carte NFC est toujours posée.
   bool resumeAfterSd = false;
+  // Lecture arrêtée à distance (Home Assistant) alors que la carte reste posée: pas de reprise avant que la carte
+  // soit retirée puis reposée. État DeviceState::Paused, publié "stopped".
+  bool stoppedRemotely = false;
+  // Réglages Home Assistant modifiés depuis l'interface: le service MQTT se reconnecte avec les nouveaux.
+  bool haConfigChanged = false;
+  // Liaison Home Assistant, affichée par la page: "off", "connecting", "connected" ou "error" (avec haError:
+  // "invalid_address", "no_wifi", "dns", "unreachable", "auth").
+  String haState = "off";
+  String haError;
 };
 
 inline const char* playbackModeToString(PlaybackMode mode) {

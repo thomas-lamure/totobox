@@ -97,6 +97,24 @@ Réglages > « Sauvegarde des cartes »: les associations (nom, contenu, signet)
 
 Les cartes maîtresses et le code de secours ne sont pas sauvegardés.
 
+## Home Assistant
+
+Réglages > « Home Assistant » (désactivé par défaut): la boîte apparaît dans Home Assistant comme un appareil, par MQTT avec la découverte automatique. Détails techniques: [home-assistant.md](home-assistant.md).
+
+Pas à pas pour une première installation: [home-assistant-mqtt.md](home-assistant-mqtt.md).
+
+1. Dans Home Assistant, installer le broker MQTT (Paramètres > Modules complémentaires > « Mosquitto broker »), créer un utilisateur pour la boîte (Paramètres > Personnes > Utilisateurs), puis ajouter l'intégration MQTT si Home Assistant ne la propose pas de lui-même.
+2. Dans la page de la boîte, activer « Relier la boîte à Home Assistant », vérifier l'adresse (`homeassistant.local` par défaut; l'adresse de la page Home Assistant, comme `http://192.168.1.10:8123`, convient aussi; `mqtt://adresse:port` pour un broker ailleurs ou sur un autre port), saisir l'utilisateur et son mot de passe, enregistrer. L'état de la liaison s'affiche sous les champs.
+
+Dans Home Assistant, l'appareil (nom réseau de la boîte) montre l'état, l'histoire en cours (carte, piste, position), le volume (curseur limité aux bornes de la boîte), un bouton « Arrêter », et en diagnostic la carte SD, le verrouillage et le signal Wi-Fi. Chaque carte posée apparaît dans Paramètres > Étiquettes, où lui donner un nom et créer une automatisation; le retrait d'une carte est un déclencheur de l'appareil. Les cartes maîtresses ne sont jamais envoyées.
+
+- « Arrêter » coupe l'histoire et garde le signet; tant que la carte reste posée, la boîte ne relance rien (LEDs jaunes, « Arrêtée » dans la page): retirer puis reposer la carte reprend l'histoire.
+- Le volume et l'arrêt restent pilotables quand les réglages sont verrouillés, comme depuis la page.
+- La boîte en veille est « indisponible ». Une carte qui la réveille lance l'histoire tout de suite; Home Assistant est prévenu quelques secondes plus tard, une fois le Wi-Fi connecté.
+- Sans Home Assistant (broker arrêté, mot de passe refusé, Wi-Fi coupé), la boîte fonctionne normalement; seule la page affiche l'erreur.
+- Désactiver la liaison retire l'appareil de Home Assistant. Après une remise à zéro, il y reste « indisponible »: le supprimer depuis Home Assistant.
+- Connexion non chiffrée (MQTT sur le réseau local, port 1883); `mqtts://` n'est pas encore pris en charge.
+
 ## Mise à jour
 
 Deux réglages (Réglages > Mises à jour, et une étape de l'assistant de première connexion):

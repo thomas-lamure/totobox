@@ -4,6 +4,14 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+### Firmware
+
+- Home Assistant (désactivé par défaut): la boîte s'annonce par MQTT avec la découverte automatique (état, histoire en cours, volume borné aux limites de la boîte, bouton « Arrêter », carte SD, verrouillage, signal Wi-Fi). Chaque carte posée devient une étiquette Home Assistant, le retrait d'une carte un déclencheur; les cartes maîtresses ne sont jamais envoyées. Un arrêt depuis Home Assistant garde le signet et ne relance pas l'histoire tant que la carte reste posée. Client MQTT dans une tâche du cœur 0, sans effet sur la lecture; une histoire ne dépend jamais de Home Assistant.
+
+### Page web
+
+- Réglages « Home Assistant »: activation, adresse (`homeassistant.local` par défaut, adresse de la page Home Assistant acceptée), utilisateur et mot de passe MQTT (envoyé chiffré), état de la liaison. Une lecture arrêtée depuis Home Assistant s'affiche « Arrêtée ».
+
 ### Développement
 
 - Atelier de rendu du boîtier (`hardware/tools/render/`, `make render`): rendus three.js du modèle Onshape, base des illustrations du README.

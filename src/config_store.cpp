@@ -83,6 +83,10 @@ DeviceConfig ConfigStore::loadConfig() {
   config.updateNotify = doc["updateNotify"] | true;
   config.autoUpdate = doc["autoUpdate"] | false;
   config.lastUpdateCheck = doc["lastUpdateCheck"] | 0;
+  config.haEnabled = doc["haEnabled"] | false;
+  config.haAddress = String(static_cast<const char*>(doc["haAddress"] | totobox::kHaDefaultAddress));
+  config.mqttUser = String(static_cast<const char*>(doc["mqttUser"] | ""));
+  config.mqttPassword = String(static_cast<const char*>(doc["mqttPassword"] | ""));
   // Verrouillage incomplet (ancienne version, NVS corrompue): on ne bloque pas la boîte.
   if (config.lockCards.empty() || config.lockPinHash.isEmpty()) {
     config.lockEnabled = false;
@@ -128,6 +132,10 @@ bool ConfigStore::saveConfig(const DeviceConfig& config) {
   doc["updateNotify"] = config.updateNotify;
   doc["autoUpdate"] = config.autoUpdate;
   doc["lastUpdateCheck"] = config.lastUpdateCheck;
+  doc["haEnabled"] = config.haEnabled;
+  doc["haAddress"] = config.haAddress;
+  doc["mqttUser"] = config.mqttUser;
+  doc["mqttPassword"] = config.mqttPassword;
 
   String payload;
   serializeJson(doc, payload);

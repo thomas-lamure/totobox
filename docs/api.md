@@ -12,7 +12,7 @@ Erreurs communes: `403 locked` (réglages verrouillés), `503 busy_playing` (acc
 | `POST /api/unlock` | oui | oui | `{pin}`; 5 erreurs = 60 s de blocage |
 | `POST /api/lock` | oui | oui | reverrouille |
 | `GET /api/config` | non | oui | réglages, bindings, cartes maîtresses |
-| `POST /api/config` | non | oui | réglages (mot de passe absent = inchangé), `hostname`, `updateNotify`, `autoUpdate`; validés, réseau appliqué sans redémarrage |
+| `POST /api/config` | non | oui | réglages (mot de passe absent = inchangé), `hostname`, `updateNotify`, `autoUpdate`, Home Assistant (voir plus bas); validés, réseau appliqué sans redémarrage |
 | `POST /api/bindings` | non | oui | remplace la liste des cartes |
 | `POST /api/lock/setup` | non | oui | `{enabled:true, cardUid, cardLabel, pin}` ou `{enabled:false}` |
 | `POST /api/lock/pin` | non | oui | `{pin}` |
@@ -37,7 +37,7 @@ Erreurs communes: `403 locked` (réglages verrouillés), `503 busy_playing` (acc
 `GET /api/status` renvoie notamment:
 
 - `firmwareVersion` (version publiée, voir [CHANGELOG.md](../CHANGELOG.md)) et `firmwareBuild` (commit compilé, `-dirty` si modifié);
-- `state`, `audioPlaying`, `activeCardUid`, `activeCardLabel`, `activeMediaPath`, `activeTrackIndex`, `activeTrackCount`, `activePositionMs`;
+- `state`, `audioPlaying`, `stoppedRemotely` (lecture arrêtée depuis Home Assistant, carte toujours posée: `state` vaut `paused`), `activeCardUid`, `activeCardLabel`, `activeMediaPath`, `activeTrackIndex`, `activeTrackCount`, `activePositionMs`;
 - `currentVolume`, `volumeMin`, `volumeMax`;
 - `lockEnabled`, `locked`, `lastUnknownCardUid` (vide si verrouillée);
 - `sdState` (`absent`, `unreadable`: présente mais pas en FAT32, `ready`) et l'espace SD;
@@ -46,6 +46,10 @@ Erreurs communes: `403 locked` (réglages verrouillés), `503 busy_playing` (acc
 - `uiVersion` (version de la page dans LittleFS: une page plus ancienne propose de se recharger);
 - `boxKey` et `challenge` (canal chiffré des secrets, voir plus bas);
 - `updateRepo` (dépôt GitHub des versions, `propriétaire/nom`), `updateNotify` et `autoUpdate` (réglages des mises à jour, aussi dans `/api/config` avec `lastUpdateCheck`, date de la dernière recherche automatique en secondes depuis 1970), et `update` (mise à jour en ligne: `phase` = `idle`, `checking` (recherche automatique), `page`, `firmware`, `restarting` ou `failed`, `version`, `done` et `total` en octets du fichier en cours, `error`).
+
+- `homeAssistant` (absent si verrouillée): `enabled`, `state` (`off`, `connecting`, `connected`, `error`) et `error` (`invalid_address`, `no_wifi`: pas connectée au Wi-Fi de la maison, `dns`, `unreachable`, `auth`).
+
+Réglages Home Assistant ([home-assistant.md](home-assistant.md)), dans `GET` et `POST /api/config`: `haEnabled`, `haAddress` (adresse de Home Assistant ou du broker MQTT: nom, IP, `hôte:port`, `mqtt://hôte:port` ou adresse de la page Home Assistant, dont le port web est ignoré; `homeassistant.local` par défaut), `mqttUser`, `mqttPassword` (secret: envoyé chiffré, jamais renvoyé; `GET` donne seulement `mqttPasswordSet`; absent = inchangé, vide = effacé). Erreurs: `invalid_ha_address`, `ha_tls_unsupported` (`mqtts://`, pas encore pris en charge), `invalid_mqtt_user`, `invalid_mqtt_password` (64 caractères au plus). L'adresse est vérifiée quand elle change et quand la liaison est activée.
 
 Les créations et renommages refusent les noms réservés ou ambigus comme `.`, `..`, `.trash`, `trash` et `content`.
 

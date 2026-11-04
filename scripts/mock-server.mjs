@@ -53,6 +53,10 @@ const config = {
   updateNotify: true,
   autoUpdate: false,
   lastUpdateCheck: 0,
+  haEnabled: false,
+  haAddress: "homeassistant.local",
+  mqttUser: "",
+  mqttPassword: "",
 };
 
 let bindings = [
@@ -70,6 +74,7 @@ const runtime = {
   activePositionMs: 0,
   playingSince: 0,
   lastUnknownCardUid: "",
+  stoppedRemotely: false,
   pinFailures: 0,
   pinBlockedUntil: 0,
   networkAttempt: { id: 0, state: "", ssid: "", ip: "", error: "", apClosesInSec: 0 },
@@ -243,10 +248,44 @@ function removeCard() {
     }
   }
   runtime.state = runtime.sdState === "ready" ? "ready" : "error";
+  runtime.stoppedRemotely = false;
   runtime.activeCardUid = "";
   runtime.activeTrackIndex = 0;
   runtime.activeTrackCount = 0;
   runtime.activePositionMs = 0;
+}
+
+// Arrêt demandé par Home Assistant (card_flow::onRemoteStop): signet gardé, pas de relance tant que la carte
+// reste posée.
+function remoteStop() {
+  if (!audioPlaying()) return;
+  const binding = bindings.find((item) => item.uid === runtime.activeCardUid);
+  if (binding) {
+    binding.resumeTrackIndex = runtime.activeTrackIndex;
+    binding.resumeMs = Date.now() - runtime.playingSince;
+  }
+  runtime.activePositionMs = Date.now() - runtime.playingSince;
+  runtime.state = "paused";
+  runtime.stoppedRemotely = true;
+}
+
+// Adresse de Home Assistant, lue comme ha_rules::parseAddress (version simplifiée): code d'erreur ou null.
+function haAddressError(address) {
+  const match = /^(?:([a-z]+):\/\/)?([^/?#]*)/i.exec(address.trim());
+  const scheme = (match[1] || "").toLowerCase();
+  if (scheme === "mqtts" || scheme === "ssl") return "ha_tls_unsupported";
+  if (scheme && !["mqtt", "tcp", "http", "https"].includes(scheme)) return "invalid_ha_address";
+  const [host, port, extra] = match[2].split(":");
+  if (extra !== undefined || !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(host || "") || host.includes("..")) return "invalid_ha_address";
+  if (port !== undefined && !(/^\d{1,5}$/.test(port) && +port >= 1 && +port <= 65535)) return "invalid_ha_address";
+  return null;
+}
+
+// Liaison simulée: connectée dès qu'elle est activée, sauf mot de passe « faux » (refusé par le broker).
+function haStatus() {
+  if (!config.haEnabled) return { enabled: false, state: "off", error: "" };
+  if (config.mqttPassword === "faux") return { enabled: true, state: "error", error: "auth" };
+  return { enabled: true, state: "connected", error: "" };
 }
 
 function setSdState(state) {
@@ -311,8 +350,10 @@ function status() {
     activePositionMs: runtime.activePositionMs,
     activeTrackCount: runtime.activeTrackCount,
     audioPlaying: audioPlaying(),
+    stoppedRemotely: runtime.stoppedRemotely,
     lockEnabled: config.lockEnabled,
     locked: isLocked(),
+    ...(isLocked() ? {} : { homeAssistant: haStatus() }),
     lastUnknownCardUid: isLocked() ? "" : runtime.lastUnknownCardUid,
     ...(active ? { activeCardLabel: active.label } : {}),
     currentVolume: config.currentVolume,
@@ -326,8 +367,8 @@ function status() {
 }
 
 function configJson() {
-  const { pin, setupDone, ...visible } = config;
-  return { ...visible, lockCards: config.lockCards.map(({ uid, label }) => ({ uid, label })), bindings };
+  const { pin, setupDone, mqttPassword, ...visible } = config;
+  return { ...visible, mqttPasswordSet: mqttPassword !== "", lockCards: config.lockCards.map(({ uid, label }) => ({ uid, label })), bindings };
 }
 
 const lockConfig = () => ({ ok: true, lockEnabled: config.lockEnabled, lockCards: config.lockCards });
@@ -349,6 +390,18 @@ const routes = [
   ["GET", "/api/status", false, false, () => [200, status()]],
   ["GET", "/api/config", true, false, () => [200, configJson()]],
   ["POST", "/api/config", true, false, (body) => {
+    const enabling = body.haEnabled === true && !config.haEnabled;
+    if (typeof body.haAddress === "string" && body.haAddress.trim() !== config.haAddress || enabling) {
+      const error = haAddressError(typeof body.haAddress === "string" ? body.haAddress : config.haAddress);
+      if (error) return [400, { ok: false, error }];
+    }
+    for (const key of ["mqttUser", "mqttPassword"]) {
+      if (typeof body[key] === "string" && body[key].length > 64) return [400, { ok: false, error: `invalid_${key === "mqttUser" ? "mqtt_user" : "mqtt_password"}` }];
+    }
+    if (typeof body.haEnabled === "boolean") config.haEnabled = body.haEnabled;
+    if (typeof body.haAddress === "string") config.haAddress = body.haAddress.trim();
+    if (typeof body.mqttUser === "string") config.mqttUser = body.mqttUser.trim();
+    if (typeof body.mqttPassword === "string") config.mqttPassword = body.mqttPassword;
     for (const key of ["wifiSsid", "apSsid"]) if (typeof body[key] === "string") config[key] = body[key].trim();
     if (typeof body.hostname === "string") config.hostname = body.hostname.trim().toLowerCase() || "totobox";
     for (const key of ["updateNotify", "autoUpdate"]) if (typeof body[key] === "boolean") config[key] = body[key];
@@ -509,6 +562,7 @@ const routes = [
     if (backupSaved) backup = { savedAt: body.savedAt || "", bindings: structuredClone(bindings) };
     const count = bindings.length;
     bindings = [];
+    Object.assign(config, { haEnabled: false, haAddress: "homeassistant.local", mqttUser: "", mqttPassword: "" });
     Object.assign(config, { wifiSsid: "", hostname: "totobox", lockEnabled: false, lockCards: [], pin: "", setupDone: false, currentVolume: 30, volumeMin: 10, volumeMax: 70 });
     runtime.unlocked = false;
     return [200, { ok: true, apSsid: config.apSsid, factoryPassword: true, backupSaved, backupCount: backupSaved ? count : 0 }];
@@ -590,6 +644,8 @@ function mockPage() {
 <section><h2>Cartes NFC</h2>${cards} ${masters}
 <p><button data-card="new">Poser une carte inconnue</button> <button data-action="remove">Retirer la carte</button></p></section>
 <section><h2>Carte SD</h2><button data-sd="ready">Prête</button> <button data-sd="unreadable">Illisible (exFAT)</button> <button data-sd="absent">Absente</button></section>
+<section><h2>Home Assistant</h2><button data-action="ha-stop">Arrêter depuis Home Assistant</button>
+<button data-action="ha-volume-up">Volume +10 depuis Home Assistant</button></section>
 <section><h2>Boîte</h2><button data-action="reset-library">Bibliothèque d'exemple</button>
 <button data-action="auto-update">Mise à jour automatique (version suivante)</button></section>
 <script>
@@ -607,6 +663,8 @@ function handleMock(body) {
   else if (body.action === "remove") removeCard();
   else if (body.action === "sd") setSdState(body.state);
   else if (body.action === "reset-library") seedLibrary();
+  else if (body.action === "ha-stop") remoteStop();
+  else if (body.action === "ha-volume-up") config.currentVolume = Math.min(config.volumeMax, config.currentVolume + 10);
   else if (body.action === "auto-update") {
     // Ce que fait la boîte en mode automatique quand elle trouve une version plus récente.
     const [major, minor, patch] = firmwareVersion.split(".").map(Number);
