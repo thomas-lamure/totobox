@@ -185,7 +185,7 @@ def inner_cutouts(entities, box):
     Tracés regroupés par extrémités communes; une découpe touche le bord de la pièce n'est pas intérieure."""
     inner = []
     for kind, data in entities:
-        if kind == "C":
+        if kind in ("C", "P"):
             continue
         ex = extent([(kind, data)])
         if ex[0] > box[0] + TOL and ex[1] > box[1] + TOL and ex[2] < box[2] - TOL and ex[3] < box[3] - TOL:
@@ -244,7 +244,7 @@ def finishing_lines(parts, name, box):
 
     holes = {}
     for kind, data in entities:
-        if kind == "C":
+        if kind in ("C", "P"):
             holes.setdefault(round(2 * data[1], 2), []).append(data[0])
     for diameter, centers in sorted(holes.items()):
         label = drill_label(diameter)
@@ -300,7 +300,7 @@ def plan_page(parts, title, boxes, cuts):
         for kind, data in clean_part(entities, Snapper())[0]:
             if kind == "L":
                 page.line(*P(*data[0]), *P(*data[1]))
-            elif kind == "C":
+            elif kind in ("C", "P"):
                 page.arc(*P(*data[0]), data[1] * scale, 0, 360)
             else:
                 (cx, cy), r, a, m, b = data

@@ -21,25 +21,12 @@ import sys
 import zlib
 from pathlib import Path
 
-from contours_to_dxf import Snapper, arc_angles, clean_part, extent, read_parts
+from contours_to_dxf import NOMS, OPTIONS, Snapper, arc_angles, clean_part, extent, read_parts
 
 PT = 72 / 25.4  # points par millimètre
 A4_PAYSAGE = (297.0, 210.0)
 MARGE_MIN = 6.5
 TEXTE_MM = 2.5  # hauteur d'une ligne de texte en 7 pt, interligne compris
-
-NOMS = {
-    "FOND": "Fond",
-    "FACADE": "Façade",
-    "ARRIERE": "Arrière",
-    "COTE_GAUCHE": "Côté gauche",
-    "COTE_DROIT": "Côté droit",
-    "CLOISON": "Cloison",
-    "COUVRE_LEDS": "Couvre-LEDs",
-    "DESSUS": "Dessus",
-    "BANDE_GUIDE": "Bande guide-cartes",
-}
-OPTIONS = {"MICROSD": "microSD (optionnel)"}
 
 
 def pdf_text(value):
@@ -122,11 +109,14 @@ def drill_label(diameter):
 
 
 def round_groups(entities):
-    """Trous (C, centres à moins de 12 mm) et arrondis d'une même fente (A, à moins de 25 mm) par diamètre."""
+    """Trous (C, centres à moins de 12 mm) et arrondis d'une même fente (A, à moins de 25 mm) par diamètre.
+
+    Un perçage à la main (P) compte comme un trou."""
     groups = []
     for kind, data in entities:
         if kind == "L":
             continue
+        kind = "C" if kind == "P" else kind
         (cx, cy), r = data[0], data[1]
         diameter = round(2 * r, 2)
         for group in groups:
@@ -144,7 +134,7 @@ def draw_entities(page, entities, ox, oy):
         if kind == "L":
             (x0, y0), (x1, y1) = data
             page.line(ox + x0, oy + y0, ox + x1, oy + y1)
-        elif kind == "C":
+        elif kind in ("C", "P"):
             (cx, cy), r = data
             page.arc(ox + cx, oy + cy, r, 0, 360)
         else:

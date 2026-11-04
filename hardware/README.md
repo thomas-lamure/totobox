@@ -47,8 +47,9 @@ Dans [laser/](laser), en millimètres, origine au coin de la plaque de 300 × 20
 
 - `<version>_calepinage_a4.pdf`: **gabarit à imprimer** à l'échelle 1:1 sur une page A4 paysage, en « taille réelle » (100 %), jamais « ajuster à la page ». Au moins 7 mm de marge: imprimable sur toutes les imprimantes. Chaque trou et chaque arrondi a une croix de centrage, et chaque groupe de trous identiques le diamètre du foret à utiliser (Ø1,6 avant-trous des entretoises, Ø2,2 vis du fond, Ø2,5 grille du haut-parleur, Ø3,5 et Ø3 aux coins des fentes USB-C et microSD, Ø7,5 encodeur), là où le texte tient;
 - `totobox_manuel_plan_de_coupe.pdf` (version manuelle): **plan de coupe à la scie**, sans gabarit imprimé. Page 1: schéma de la plaque et ordre des traits, avec la cote de chacun (traits horizontaux sur toute la plaque, puis traits verticaux dans chaque bande, puis recoupes), mesurée depuis le bord qui vient d'être scié (le trait de 2 mm tombe entre les pièces). Page 2: chanfreins, encoches, biseaux, fentes et perçages, en coordonnées depuis le coin bas gauche de chaque pièce vue de sa face intérieure;
-- `<version>_plaque.dxf`: les 9 pièces placées comme dans le calepinage, un calque par pièce (FOND, FACADE, ARRIERE, COTE_GAUCHE, COTE_DROIT, DESSUS, CLOISON, COUVRE_LEDS, BANDE_GUIDE), plus le calque ARRIERE_MICROSD;
-- `<version>_<piece>.dxf`: chaque pièce seule, ramenée à l'origine, pour un placement libre dans le logiciel de découpe;
+- `<version>_plaque.dxf`: les 9 pièces placées comme dans le calepinage, un calque par pièce (FOND, FACADE, ARRIERE, COTE_GAUCHE, COTE_DROIT, DESSUS, CLOISON, COUVRE_LEDS, BANDE_GUIDE), plus le calque ARRIERE_MICROSD et le calque GRAVURE;
+- `<version>_<piece>.dxf`: chaque pièce seule (avec sa gravure), ramenée à l'origine, pour un placement libre dans le logiciel de découpe;
+- calque **GRAVURE** des DXF: croix de centrage de chaque trou et de chaque arrondi (comme le gabarit PDF), et nom de la pièce sans accents, là où il tient. À graver en premier (passe de gravure, faible puissance), ou à désactiver. Les pièces étant vues de leur face intérieure, la gravure reste cachée une fois la boîte montée;
 - `<version>_contours.txt`: les contours sources, extraits des documents Onshape (format décrit en tête de fichier).
 
 **Toutes les pièces sont vues de leur face intérieure** (celle tournée vers le centre de la boîte; pour la bande guide-cartes, celle collée contre le dessus): le gabarit papier se colle de ce côté, ses traces de colle restent cachées une fois la boîte montée.
@@ -57,7 +58,8 @@ La fente de la carte microSD dans l'arrière est **optionnelle** (elle sert seul
 
 Particularités:
 
-- version à créneaux: le fond est exporté sans ses trous (avant-trous des entretoises et trous fraisés des vis, à percer à la main);
+- version à créneaux: les trous du fond (avant-trous des entretoises Ø1,6, trous des vis Ø2,2 à fraiser) ne sont pas découpés mais marqués d'une croix sur le calque GRAVURE (et dans le gabarit PDF), pour les percer à la main;
+- version à créneaux: le couvre-LEDs est à bords droits (19,1 mm, rien à poncer) et se pose par un tenon à chaque bout dans une mortaise inclinée de la cloison et du côté droit, à mettre en place avant de fermer le côté droit; poncer à fleur le tenon qui dépasse dans la fente à cartes;
 - version manuelle: le fond garde ses perçages, le couvre-LEDs est tracé par sa grande face (25,1 mm) et le biseau à 45° de ses deux bords se fait au ponçage;
 - les deux: la bande guide-cartes est découpée droite, son biseau à 80° se fait au ponçage. Pas de compensation de saignée dans les fichiers: la régler dans le logiciel de découpe.
 

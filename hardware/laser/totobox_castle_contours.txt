@@ -1,14 +1,23 @@
 # Contours des pièces de 3 mm de la version à créneaux, placés sur une plaque de 300 x 200 mm (origine au coin de
 # la plaque), extraits du document Onshape "Totobox castle joint" (face principale de chaque pièce, calepinage de
-# l'assemblage "Calepinage"). Fond: contour extérieur seul, sans ses trous. Converti par hardware/tools/contours_to_dxf.py.
+# l'assemblage "Calepinage"). Fond: ses trous (avant-trous des entretoises, trous fraisés des vis) sont à percer à la
+# main: notés P, seulement marqués d'une croix (calque GRAVURE), jamais découpés. Converti par hardware/tools/contours_to_dxf.py.
 # Pièces vues de leur face intérieure (côté où se colle le gabarit papier).
-# L x0 y0 x1 y1 | C cx cy r | A cx cy r x0 y0 xm ym x1 y1 (arc de (x0,y0) à (x1,y1) passant par (xm,ym))
+# L x0 y0 x1 y1 | C cx cy r | P cx cy r (perçage à la main) | A cx cy r x0 y0 xm ym x1 y1 (arc de (x0,y0) à (x1,y1) passant par (xm,ym))
 # Pièce suivie d'un point (ARRIERE.MICROSD): découpe optionnelle de la pièce, sur son propre calque.
 # FOND
 L 2 2 120.5 2
 L 2 66 120.5 66
 L 2 2 2 66
 L 120.5 2 120.5 66
+P 20 7 0.8
+P 111 7 0.8
+P 20 61 0.8
+P 111 61 0.8
+P 3.9 3.9 1.1
+P 3.9 64.1 1.1
+P 118.6 3.9 1.1
+P 118.6 64.1 1.1
 # FACADE
 L 105.91 91.3 14.71 91.3
 L 105.91 97.3 14.71 97.3
@@ -183,6 +192,10 @@ L 86.253 176.2 86.253 173.2
 L 77.11 176.2 86.253 176.2
 L 95.396 176.2 104.539 176.2
 L 77.11 166.2 77.11 176.2
+L 130.824 143.014 137.896 150.086
+L 128.703 145.136 130.824 143.014
+L 135.774 152.207 128.703 145.136
+L 137.896 150.086 135.774 152.207
 # CLOISON
 L 283.09 69.01 283.09 5.01
 L 236.1 14.153 239.11 14.153
@@ -216,11 +229,23 @@ L 256.696 69.01 256.696 72.02
 L 247.898 69.01 247.898 72.02
 L 239.11 69.01 247.898 69.01
 L 256.696 69.01 265.494 69.01
+L 269.286 15.296 262.214 8.224
+L 267.164 17.417 269.286 15.296
+L 260.093 10.346 267.164 17.417
+L 262.214 8.224 260.093 10.346
 # COUVRE_LEDS
-L 146.2 126.2 251.69 126.2
-L 146.2 151.292 251.69 151.292
-L 251.69 126.2 251.69 151.292
-L 146.2 126.2 146.2 151.292
+L 149.21 145.292 254.7 145.292
+L 149.21 126.2 254.7 126.2
+L 257.71 130.746 257.71 140.746
+L 254.7 130.746 257.71 130.746
+L 254.7 140.746 257.71 140.746
+L 254.7 140.746 254.7 145.292
+L 254.7 126.2 254.7 130.746
+L 146.2 130.746 146.2 140.746
+L 146.2 130.746 149.21 130.746
+L 146.2 140.746 149.21 140.746
+L 149.21 140.746 149.21 145.292
+L 149.21 126.2 149.21 130.746
 # DESSUS
 C 184.76 37.01 1.25
 C 184.76 41.01 1.25

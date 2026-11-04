@@ -10,6 +10,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ### Boîtier
 
+- DXF: calque GRAVURE avec la croix de centrage de chaque trou et de chaque arrondi et le nom de chaque pièce, gravés sur la face intérieure.
+- Version à créneaux: les trous du fond, à percer à la main, sont marqués d'une croix sur le calque GRAVURE et dans le gabarit PDF (avec leur foret), sans être découpés.
+- Version à créneaux: couvre-LEDs à bords droits (plus de biseau à poncer), placé par un tenon à chaque bout dans une mortaise inclinée de la cloison et du côté droit (Feature Onshape `led_cover.fs`).
 - Plan de coupe à la scie de la version manuelle (`hardware/laser/totobox_manuel_plan_de_coupe.pdf`, généré par `make cad`), pour découper sans gabarit imprimé: ordre des traits et leurs cotes (bandes horizontales, puis traits verticaux, puis recoupes), finitions et coordonnées des perçages.
 
 ## 1.2.1 - 2026-10-28

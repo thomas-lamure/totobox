@@ -9,6 +9,7 @@ Le boîtier est dessiné dans Onshape (documents publics, liens dans [../README.
 - [standoff.fs](standoff.fs): entretoise hexagonale M2 posée sur le fond, avec le perçage du fond: avant-trou Ø 1,6 pour une entretoise mâle-femelle (sous la carte), ou trou fraisé pour une vis M2 tête fraisée passée par le dessous (fermeture du fond).
 - [card_guide.fs](card_guide.fs): bande guide-cartes collée contre la paroi de la fente: plaque la carte contre la cloison (et le tag contre l'antenne), biseau d'entrée en haut, encoches en bas à chaque bout pour les entretoises de fond.
 - [sheet.fs](sheet.fs): plaque de contreplaqué (300 × 200 × 3 par défaut) pour le calepinage.
+- [led_cover.fs](led_cover.fs): couvre-LEDs à bords droits pour la découpe laser (version à créneaux): coupe d'équerre les deux biseaux de la plaque inclinée en gardant sa face côté LEDs, et ajoute à chaque bout un tenon qui traverse la paroi voisine (cloison, paroi droite) dans une mortaise inclinée comme la plaque.
 - [castle_joint.fs](castle_joint.fs): assemblage à créneaux entre deux plaques à angle droit (coin, bord ou T): nombre impair de créneaux d'environ la largeur visée, ceux des bouts à la plaque A; compensation de saignée laser et limitation de l'arête (coins où trois plaques se rencontrent).
 
 ## Importer une Feature
@@ -140,6 +141,7 @@ Copie de la version faite à la main, adaptée à la découpe laser:
   - 4 coins verticaux (façade, côtés, arrière): 5 créneaux sur 50 mm;
   - dessus avec façade, arrière et côté droit, limités à la zone intérieure (X `#cloison_x` → `#interieur_droite_x`, Y `#interieur_avant_y` → `#interieur_arriere_y`);
   - cloison avec le dessus (tenons dans des encoches) et avec façade et arrière (tenons dans des mortaises), limités en Z à `#fond_z` → `#haut_z - #paroi`;
-- le fond reste encastré et vissé, sans créneaux; couvre-LEDs et bande guide-cartes restent collés.
+- couvre-LEDs à bords droits (« Couvre-LEDs a bords droits », Feature Studio « Couvre-LEDs », en fin d'historique): plus que 19,1 mm de large, sans biseau à poncer, il touche la façade par l'arête de sa face côté LEDs (la lumière reste dessous). Un tenon de 10 mm (`#saignee_compensation` appliquée) à chaque bout le place à sa hauteur et à 45°, dans une mortaise inclinée de la cloison et de la paroi droite (visible à l'extérieur, comme les créneaux). Le poser dans la cloison avant de fermer la paroi droite, puis poncer à fleur le tenon côté fente à cartes;
+- le fond reste encastré et vissé, sans créneaux; bande guide-cartes collée.
 
 Les épaisseurs mesurent 3,01 mm aux créneaux: l'écart de 0,01 mm entre les parois du modèle est comblé, sans effet à la découpe.

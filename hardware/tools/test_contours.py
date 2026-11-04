@@ -47,7 +47,7 @@ def read_dxf_entities(text):
         if code == "0":
             if current:
                 entities.append(current)
-            current = {"type": value} if value in ("LINE", "CIRCLE", "ARC") else None
+            current = {"type": value} if value in ("LINE", "CIRCLE", "ARC", "TEXT") else None
         elif current is not None:
             current[code] = value
     return entities
@@ -147,6 +147,40 @@ class FileTests(unittest.TestCase):
         self.assertAlmostEqual(min(xs), 0.0)
 
 
+class EngravingTests(unittest.TestCase):
+    def test_hole_gets_a_cross_and_the_piece_its_name(self):
+        cleaned, _ = c2d.clean_part(square(0, 0, 60) + [("C", [10, 50, 1])], c2d.Snapper())
+        marks = c2d.engraving("COTE_DROIT", cleaned)
+        crosses = [data for kind, data in marks if kind == "L"]
+        # Croix un peu plus grande que le trou (rayon + 0,8 mm de chaque côté).
+        self.assertEqual(crosses, [((8.2, 50), (11.8, 50)), ((10, 48.2), (10, 51.8))])
+        texts = [data for kind, data in marks if kind == "T"]
+        self.assertEqual(len(texts), 1)
+        (x, y), height, value = texts[0]
+        self.assertEqual((x, value), (30, "Cote droit"))
+        self.assertEqual(height, c2d.TEXTE_GRAVURE)
+
+    def test_name_is_left_out_when_it_does_not_fit(self):
+        cleaned, _ = c2d.clean_part(square(0, 0, 10), c2d.Snapper())
+        self.assertEqual(c2d.engraving("BANDE_GUIDE", cleaned), [])
+
+    def test_text_is_a_centered_dxf_text_on_the_engraving_layer(self):
+        entities = read_dxf_entities("0\nSECTION\n2\nENTITIES\n" + "\n".join(
+            c2d.dxf_entities(c2d.GRAVURE, [("T", ((5, 6), 3.0, "Fond"))], 1, 2)) + "\n0\nEOF")
+        self.assertEqual(entities[0]["type"], "TEXT")
+        self.assertEqual((entities[0]["8"], entities[0]["1"], entities[0]["72"]), ("GRAVURE", "Fond", "4"))
+        self.assertEqual((float(entities[0]["11"]), float(entities[0]["21"])), (6.0, 8.0))
+
+    def test_every_piece_of_both_versions_gets_its_name(self):
+        for path in VERSIONS:
+            for name, entities in c2d.read_parts(path).items():
+                if "." in name:
+                    continue
+                with self.subTest(version=path.stem, piece=name):
+                    marks = c2d.engraving(name, c2d.clean_part(entities, c2d.Snapper())[0])
+                    self.assertEqual([data[2] for kind, data in marks if kind == "T"], [c2d.ascii_text(c2d.NOMS[name])])
+
+
 @unittest.skipUnless(CONTOURS.exists(), "contours de la version à créneaux absents")
 class CastleJointExportTests(unittest.TestCase):
     """Contours réels de la version à créneaux: toutes les pièces fermées, fond sans trous."""
@@ -157,10 +191,14 @@ class CastleJointExportTests(unittest.TestCase):
                 _, open_ends = c2d.clean_part(entities, c2d.Snapper())
                 self.assertEqual(open_ends, [])
 
-    def test_bottom_plate_has_no_holes(self):
-        parts = c2d.read_parts(CONTOURS)
-        self.assertTrue(all(kind == "L" for kind, _ in parts["FOND"]))
-        self.assertEqual(len(parts["FOND"]), 4)
+    def test_bottom_plate_holes_are_drilled_by_hand(self):
+        # Fond: rien n'est découpé dans la plaque, ses 8 trous (4 avant-trous Ø1,6, 4 vis Ø2,2) sont seulement marqués.
+        cleaned = c2d.clean_part(c2d.read_parts(CONTOURS)["FOND"], c2d.Snapper())[0]
+        self.assertEqual(sorted(kind for kind, _ in cleaned), ["L"] * 4 + ["P"] * 8)
+        cut = read_dxf_entities("0\nSECTION\n2\nENTITIES\n" + "\n".join(c2d.dxf_entities("FOND", cleaned)) + "\n0\nEOF")
+        self.assertEqual([e["type"] for e in cut], ["LINE"] * 4)
+        crosses = [data for kind, data in c2d.engraving("FOND", cleaned) if kind == "L"]
+        self.assertEqual(len(crosses), 16)
 
     def test_parts_stay_on_the_sheet_with_a_margin(self):
         for name, entities in c2d.read_parts(CONTOURS).items():
@@ -208,6 +246,23 @@ class VersionTests(unittest.TestCase):
                 sx0, _, sx1, _ = c2d.extent(c2d.clean_part(parts["ARRIERE.MICROSD"], c2d.Snapper())[0])
                 self.assertGreater((sx0 + sx1) / 2, (bx0 + bx1) / 2)
 
+    def test_castle_led_cover_has_square_edges_and_a_tab_in_each_inclined_mortise(self):
+        # Couvre-LEDs laser: bords droits (19,09 mm, plus de biseau à poncer), un tenon de 10 x 3,01 mm à chaque bout,
+        # qui entre dans une mortaise de même taille, inclinée à 45°, dans la cloison et dans le côté droit.
+        parts = c2d.read_parts(CONTOURS)
+        cover = c2d.clean_part(parts["COUVRE_LEDS"], c2d.Snapper())[0]
+        x0, y0, x1, y1 = c2d.extent(cover)
+        self.assertAlmostEqual(y1 - y0, 19.09, places=2)
+        self.assertAlmostEqual(x1 - x0, 105.49 + 2 * 3.01, places=2)
+        for piece in ("CLOISON", "COTE_DROIT"):
+            with self.subTest(piece=piece):
+                lines = [data for kind, data in c2d.clean_part(parts[piece], c2d.Snapper())[0] if kind == "L"]
+                slanted = [((x1 - x0), (y1 - y0)) for (x0, y0), (x1, y1) in lines if abs(x1 - x0) > 0.01 and abs(y1 - y0) > 0.01]
+                self.assertEqual(len(slanted), 4)
+                self.assertTrue(all(abs(abs(dx) - abs(dy)) < 0.01 for dx, dy in slanted))
+                lengths = sorted(round(math.hypot(dx, dy), 2) for dx, dy in slanted)
+                self.assertEqual(lengths, [3.0, 3.0, 10.0, 10.0])
+
 
 class PdfTests(unittest.TestCase):
     def test_pdf_is_a_single_a4_landscape_page(self):
@@ -244,13 +299,16 @@ class PdfTests(unittest.TestCase):
 
     def test_every_hole_gets_its_drill_size(self):
         import re
-        page = c2p.layout_page(c2d.read_parts(VERSIONS[1]), "essai")
-        labels = [re.search(r"\((.*)\) Tj", op).group(1) for op in page.ops if " Tj " in op]
-        # Fond: 4 avant-trous d'entretoise et 4 trous de vis; arrière: USB-C et microSD; côté droit: encodeur.
-        self.assertEqual(labels.count("Ø1,6"), 4)
-        self.assertEqual(labels.count("Ø2,2"), 4)
-        for label in ("Ø3,5", "Ø3", "Ø7,5", "16 × Ø2,5"):
-            self.assertIn(label, labels)
+        # Version manuelle (trous découpés) et à créneaux (fond percé à la main): mêmes trous, mêmes forets.
+        for path in VERSIONS:
+            with self.subTest(version=path.stem):
+                page = c2p.layout_page(c2d.read_parts(path), "essai")
+                labels = [re.search(r"\((.*)\) Tj", op).group(1) for op in page.ops if " Tj " in op]
+                # Fond: 4 avant-trous d'entretoise et 4 trous de vis; arrière: USB-C et microSD; côté droit: encodeur.
+                self.assertEqual(labels.count("Ø1,6"), 4)
+                self.assertEqual(labels.count("Ø2,2"), 4)
+                for label in ("Ø3,5", "Ø3", "Ø7,5", "16 × Ø2,5"):
+                    self.assertIn(label, labels)
 
     def test_drill_label_uses_a_decimal_comma(self):
         self.assertEqual(c2p.drill_label(7.5), "Ø7,5")
