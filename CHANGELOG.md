@@ -4,6 +4,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.3.0 - 2026-11-04
+
 ### Firmware
 
 - Home Assistant (désactivé par défaut): la boîte s'annonce par MQTT avec la découverte automatique (état, histoire en cours, volume borné aux limites de la boîte, bouton « Arrêter », carte SD, verrouillage, signal Wi-Fi). Chaque carte posée devient une étiquette Home Assistant, le retrait d'une carte un déclencheur; les cartes maîtresses ne sont jamais envoyées. Un arrêt depuis Home Assistant garde le signet et ne relance pas l'histoire tant que la carte reste posée. Client MQTT dans une tâche du cœur 0, sans effet sur la lecture; une histoire ne dépend jamais de Home Assistant.
