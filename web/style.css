@@ -851,6 +851,11 @@ dialog::backdrop {
   gap: 14px;
 }
 
+/* Une liste aux coins arrondis (overflow: hidden) serait sinon écrasée et tronquée au lieu de faire défiler le corps. */
+.sheet-body > * {
+  flex-shrink: 0;
+}
+
 .sheet-foot {
   padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
