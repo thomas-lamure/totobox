@@ -4,6 +4,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.5.2 - 2026-11-08
+
 ### Page web
 
 - Fenêtres « Ordre des pistes », « Déplacer » et choix d'un dossier (nouvelle carte, fiche d'une carte): une longue liste défile; elle était tronquée à la hauteur de la fenêtre, et les derniers éléments restaient inaccessibles.
