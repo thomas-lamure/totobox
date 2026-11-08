@@ -2384,7 +2384,7 @@ function renderDeviceInfo() {
     ["Réseau", s.wifiMode === "ap" ? "Point d'accès" : s.wifiMode === "sta" ? (s.wifiConnected ? "Wi-Fi maison" : "Wi-Fi maison (reconnexion…)") : s.wifiMode === "connecting" ? "Connexion en cours…" : "—"],
     ["Adresse", s.wifiIp || "—"],
     ["Nom", s.hostname ? `http://${s.hostname}` : "—"],
-    ["Carte SD", s.sdReady ? `${fmtBytes(s.sdFreeBytes)} libres / ${fmtBytes(s.sdTotalBytes)}` : "Absente"],
+    ["Carte SD", s.sdReady ? `${fmtBytes(s.sdTotalBytes - s.sdFreeBytes)} utilisés / ${fmtBytes(s.sdTotalBytes)}` : "Absente"],
     ["Lecteur NFC", s.nfcReady ? "OK" : "Non détecté"],
     ["Cartes associées", String(s.bindingsCount ?? bindings().length)],
     // Version et commit compilé: à donner dans un signalement de problème.
@@ -2426,9 +2426,50 @@ $("open-settings").addEventListener("click", async () => {
   $("settings-error").hidden = true;
   renderSettingsLock();
   renderDeviceInfo();
+  showSettingsTab("listening");
   openDialog($("settings-dialog"));
   refreshBackupInfo();
 });
+
+// Onglets des réglages: Écoute (volume, verrouillage), Réseau (Wi-Fi, point d'accès, Home Assistant), Boîte.
+// « Enregistrer » n'envoie que l'onglet affiché; l'onglet Boîte n'a que des actions immédiates.
+let settingsTab = "listening";
+
+function showSettingsTab(tab) {
+  settingsTab = tab;
+  document.querySelectorAll("[data-settings-tab]").forEach((button) => {
+    button.setAttribute("aria-selected", String(button.dataset.settingsTab === tab));
+  });
+  document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.settingsPanel !== tab;
+  });
+  $("settings-foot").hidden = tab === "box";
+  // Le verrouillage, dans le même onglet que le volume, agit tout de suite: le bouton dit ce qu'il enregistre.
+  $("settings-save").textContent = tab === "network" ? "Enregistrer le réseau" : "Enregistrer le volume";
+  $("settings-error").hidden = true;
+  document.querySelector("#settings-dialog .sheet-body").scrollTop = 0;
+}
+
+document.querySelector("#settings-dialog .tabs").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-settings-tab]");
+  if (button) showSettingsTab(button.dataset.settingsTab);
+});
+
+// Mises à jour: un interrupteur s'enregistre dès qu'il change.
+["settings-update-notify", "settings-auto-update"].forEach((id) =>
+  $(id).addEventListener("change", async () => {
+    const payload = { updateNotify: $("settings-update-notify").checked, autoUpdate: $("settings-auto-update").checked };
+    const result = await api("/api/config", { json: payload });
+    if (!result.ok) {
+      $(id).checked = !$(id).checked;
+      toast(errorText(result.error), true);
+      return;
+    }
+    app.config = result.data;
+    if (app.status) Object.assign(app.status, payload);
+    toast("Enregistré.");
+  }),
+);
 
 
 const HA_ERRORS = {
@@ -2474,62 +2515,76 @@ function renderHostnamePreview() {
 
 $("hostname").addEventListener("input", renderHostnamePreview);
 
-$("settings-save").addEventListener("click", async () => {
-  const error = $("settings-error");
-  const fail = (message) => {
-    error.textContent = message;
-    error.hidden = false;
-  };
+function settingsFail(message) {
+  $("settings-error").textContent = message;
+  $("settings-error").hidden = false;
+}
+
+$("settings-save").addEventListener("click", () => (settingsTab === "network" ? saveNetworkSettings() : saveListeningSettings()));
+
+async function saveListeningSettings() {
+  const result = await api("/api/config", { json: { volumeMin: Number($("vol-min").value), volumeMax: Number($("vol-max").value) } });
+  if (!result.ok) return settingsFail(errorText(result.error));
+  app.config = result.data;
+  $("settings-dialog").close();
+  toast("Volume autorisé enregistré.");
+  refreshStatus();
+}
+
+async function saveNetworkSettings() {
   const wifiSsid = $("wifi-ssid").value.trim();
   const wifiPassword = $("wifi-password").value;
   const apSsid = $("ap-ssid").value.trim() || app.config.apSsid;
   const apPassword = $("ap-password").value;
   const hostname = normalizeHostname($("hostname").value);
 
-  if (byteLength(wifiSsid) > 32) return fail(errorText("invalid_wifi_ssid"));
-  if (wifiPassword && (wifiPassword.length < 8 || wifiPassword.length > 63)) return fail(errorText("invalid_wifi_password"));
-  if (byteLength(apSsid) > 32) return fail(errorText("invalid_ap_ssid"));
-  if (apPassword && (apPassword.length < 8 || apPassword.length > 63)) return fail(errorText("invalid_ap_password"));
-  if (!HOSTNAME_PATTERN.test(hostname)) return fail(errorText("invalid_hostname"));
+  if (byteLength(wifiSsid) > 32) return settingsFail(errorText("invalid_wifi_ssid"));
+  if (wifiPassword && (wifiPassword.length < 8 || wifiPassword.length > 63)) return settingsFail(errorText("invalid_wifi_password"));
+  if (byteLength(apSsid) > 32) return settingsFail(errorText("invalid_ap_ssid"));
+  if (apPassword && (apPassword.length < 8 || apPassword.length > 63)) return settingsFail(errorText("invalid_ap_password"));
+  if (!HOSTNAME_PATTERN.test(hostname)) return settingsFail(errorText("invalid_hostname"));
 
   const before = app.config;
   const previousAttemptId = app.status && app.status.networkAttempt ? app.status.networkAttempt.id : 0;
   const payload = {
-    volumeMin: Number($("vol-min").value),
-    volumeMax: Number($("vol-max").value),
     wifiSsid,
     apSsid,
     hostname,
-    updateNotify: $("settings-update-notify").checked,
-    autoUpdate: $("settings-auto-update").checked,
     haEnabled: $("ha-enabled").checked,
     haAddress: $("ha-address").value.trim() || "homeassistant.local",
     mqttUser: $("mqtt-user").value.trim(),
   };
+  // Variante hors ligne: pas de réglages Home Assistant à envoyer.
+  if (!hasFeature("homeAssistant")) {
+    delete payload.haEnabled;
+    delete payload.haAddress;
+    delete payload.mqttUser;
+  }
   // Champ vide = mot de passe inchangé (la boîte ne renvoie jamais les mots de passe).
   const secrets = {};
   if (wifiPassword) secrets.wifiPassword = wifiPassword;
   if (apPassword) secrets.apPassword = apPassword;
-  const mqttPassword = $("mqtt-password").value;
-  if (mqttPassword) secrets.mqttPassword = mqttPassword;
-  // Sans utilisateur, pas de mot de passe: l'ancien est effacé.
-  else if (!payload.mqttUser && before.mqttPasswordSet) secrets.mqttPassword = "";
+  if (hasFeature("homeAssistant")) {
+    const mqttPassword = $("mqtt-password").value;
+    if (mqttPassword) secrets.mqttPassword = mqttPassword;
+    // Sans utilisateur, pas de mot de passe: l'ancien est effacé.
+    else if (!payload.mqttUser && before.mqttPasswordSet) secrets.mqttPassword = "";
+  }
   const networkChanged =
     wifiSsid !== (before.wifiSsid || "") || Boolean(wifiPassword) || apSsid !== before.apSsid || Boolean(apPassword);
   const hostnameChanged = hostname !== before.hostname;
 
   const result = await apiWithSecrets("/api/config", payload, secrets);
-  if (!result.ok) return fail(errorText(result.error));
+  if (!result.ok) return settingsFail(errorText(result.error));
   app.config = result.data;
-  if (app.status) Object.assign(app.status, { updateNotify: payload.updateNotify, autoUpdate: payload.autoUpdate });
   $("settings-dialog").close();
   if (networkChanged) {
     openNetworkProgress(wifiSsid, apSsid, previousAttemptId);
   } else {
-    toast(hostnameChanged ? `Réglages enregistrés. Nouvelle adresse: http://${hostname}.local` : "Réglages enregistrés.");
+    toast(hostnameChanged ? `Réseau enregistré. Nouvelle adresse: http://${hostname}.local` : "Réseau enregistré.");
   }
   refreshStatus();
-});
+}
 
 // Efface le Wi-Fi maison (nom et mot de passe): la boîte repasse sur son point d'accès.
 $("wifi-forget").addEventListener("click", async () => {

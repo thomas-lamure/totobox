@@ -391,6 +391,43 @@ button {
   accent-color: var(--accent);
 }
 
+/* Onglets des réglages. */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 16px 4px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.tabs button {
+  flex: 1;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 6px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tabs button[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.settings-panel {
+  gap: 22px;
+}
+
 .switch {
   display: flex;
   gap: 12px;

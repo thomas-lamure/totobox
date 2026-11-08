@@ -7,7 +7,7 @@ La boîte n'a jamais besoin de Home Assistant pour lire une histoire: si quelque
 ## Ce qu'il faut
 
 - Home Assistant OS installé et accessible depuis un navigateur (en général `http://homeassistant.local:8123`), avec un compte **administrateur**.
-- La TotoBox connectée au **même Wi-Fi** que Home Assistant (Réglages de la boîte > Wi-Fi de la maison), avec un firmware qui propose la section « Home Assistant » dans ses réglages.
+- La TotoBox connectée au **même Wi-Fi** que Home Assistant (Réglages de la boîte > Réseau > Wi-Fi de la maison), avec un firmware qui propose la section « Home Assistant » dans ses réglages.
 - Le téléphone ou l'ordinateur sur ce même réseau, pour ouvrir les deux pages.
 
 ## Le principe en deux phrases
@@ -62,11 +62,11 @@ Conseil: dans l'interface de la box Internet, réserver cette adresse à Home As
 
 ## 5. Régler la TotoBox
 
-1. Ouvrir la page de la boîte (`http://totobox.local`, ou le nom choisi), puis **Réglages** (déverrouiller d'abord si le verrouillage est actif).
+1. Ouvrir la page de la boîte (`http://totobox.local`, ou le nom choisi), puis **Réglages**, onglet **Réseau** (déverrouiller d'abord si le verrouillage est actif).
 2. Dans la section **Home Assistant**, activer **Relier la boîte à Home Assistant**.
 3. **Adresse de Home Assistant**: laisser `homeassistant.local`, ou mettre l'adresse IP notée à l'étape 4. Coller l'adresse de la page Home Assistant (`http://192.168.1.10:8123`) marche aussi: la boîte en garde seulement l'adresse.
 4. **Utilisateur MQTT** et **Mot de passe MQTT**: ceux du compte créé à l'étape 1.
-5. **Enregistrer**.
+5. **Enregistrer le réseau**.
 
 Après quelques secondes, rouvrir les réglages: sous les champs, la page doit afficher « Connectée à Home Assistant. ». Sinon, voir [Dépannage](#dépannage).
 
@@ -148,6 +148,6 @@ Autres cas:
 
 ## Délier la boîte
 
-Désactiver **Relier la boîte à Home Assistant** dans les réglages de la boîte, puis **Enregistrer**: la boîte retire elle-même son appareil de Home Assistant. Après une remise à zéro de la boîte, l'appareil reste « indisponible » dans Home Assistant: le supprimer depuis sa fiche (menu ⋮ > Supprimer).
+Désactiver **Relier la boîte à Home Assistant** dans les réglages de la boîte (onglet Réseau), puis **Enregistrer le réseau**: la boîte retire elle-même son appareil de Home Assistant. Après une remise à zéro de la boîte, l'appareil reste « indisponible » dans Home Assistant: le supprimer depuis sa fiche (menu ⋮ > Supprimer).
 
 Pour aller plus loin (sujets MQTT, contenu des messages, choix techniques): [home-assistant.md](home-assistant.md).

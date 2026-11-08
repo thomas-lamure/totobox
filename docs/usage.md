@@ -44,7 +44,7 @@ Adresse: `http://totobox.local` (ou `http://<nom>.local` si la boîte a été re
 - **Nouvelle carte**: une carte inconnue posée affiche le bandeau « Nouvelle carte détectée » et un assistant en 3 étapes (carte, contenu, nom). La lecture démarre si la carte est encore posée.
 - **Contenu d'une carte**: un dossier entier (lu dans l'ordre alphabétique) ou un seul fichier, choisi dans un sélecteur avec recherche.
 - **Fichiers**: navigation par dossiers, envoi, téléchargement d'un fichier ou d'un dossier (menu « ⋯ » > Télécharger, voir [Télécharger un dossier](#télécharger-un-dossier)), renommage et déplacement (les cartes concernées suivent), corbeille restaurable. Sur ordinateur, glisser-déposer de fichiers et de dossiers (les sous-dossiers sont recréés, les fichiers non audio ignorés), et une ligne glissée sur un dossier y est déplacée. Les tags ID3 et pochettes des MP3 sont retirés à l'envoi. Voir [Volume des MP3](#volume-des-mp3) pour l'égalisation du volume. Un téléchargement s'arrête si une carte lance une histoire: l'histoire passe avant.
-- **Réglages**: limites de volume, Wi-Fi de la maison (avec « Oublier ce réseau »), point d'accès de secours, verrouillage, sauvegarde des cartes, remise à zéro.
+- **Réglages** (roue dentée), en trois onglets, chacun enregistré seul: **Écoute** (limites de volume, verrouillage), **Réseau** (Wi-Fi de la maison avec « Oublier ce réseau », nom de la boîte, point d'accès de secours, Home Assistant), **Boîte** (mises à jour, informations, sauvegarde des cartes, remise à zéro). « Enregistrer » ne concerne que l'onglet affiché; les boutons du verrouillage, de la sauvegarde et de la remise à zéro, et les interrupteurs des mises à jour, agissent tout de suite.
 
 Pendant la lecture, la boîte refuse l'accès aux fichiers (pour ne pas faire sauter le son): la page l'indique.
 
@@ -112,13 +112,13 @@ La carte peut être retirée à chaud: la lecture s'arrête en gardant le signet
 
 ## Sauvegarde des cartes
 
-Réglages > « Sauvegarde des cartes »: les associations (nom, contenu, signet) sont écrites dans `/totobox-cartes.json` à la racine de la carte SD, hors de la bibliothèque. Une seule sauvegarde: la nouvelle remplace l'ancienne, et une liste vide ne remplace jamais une sauvegarde existante. « Restaurer » remplace les associations actuelles par celles du fichier.
+Réglages > Boîte > « Sauvegarde des cartes »: les associations (nom, contenu, signet) sont écrites dans `/totobox-cartes.json` à la racine de la carte SD, hors de la bibliothèque. Une seule sauvegarde: la nouvelle remplace l'ancienne, et une liste vide ne remplace jamais une sauvegarde existante. « Restaurer » remplace les associations actuelles par celles du fichier.
 
 Les cartes maîtresses et le code de secours ne sont pas sauvegardés.
 
 ## Home Assistant
 
-Réglages > « Home Assistant » (désactivé par défaut): la boîte apparaît dans Home Assistant comme un appareil, par MQTT avec la découverte automatique. Détails techniques: [home-assistant.md](home-assistant.md).
+Réglages > Réseau > « Home Assistant » (désactivé par défaut): la boîte apparaît dans Home Assistant comme un appareil, par MQTT avec la découverte automatique. Détails techniques: [home-assistant.md](home-assistant.md).
 
 Pas à pas pour une première installation: [home-assistant-mqtt.md](home-assistant-mqtt.md).
 
@@ -136,7 +136,7 @@ Dans Home Assistant, l'appareil (nom réseau de la boîte) montre l'état, l'his
 
 ## Mise à jour
 
-Deux réglages (Réglages > Mises à jour, et une étape de l'assistant de première connexion):
+Deux réglages (Réglages > Boîte > Mises à jour, enregistrés dès qu'on les change, et une étape de l'assistant de première connexion):
 
 - **Être informé des mises à jour de la TotoBox** (activé par défaut): à son ouverture, puis une fois par jour tant qu'elle reste ouverte, la page regarde sur GitHub si une nouvelle version est publiée (le téléphone doit avoir accès à Internet; rien n'est envoyé, la page lit seulement la liste des versions). Un bandeau l'annonce (« Plus tard » le masque jusqu'à la version suivante); la mise à jour reste aussi proposée dans les réglages. Désactivé, la page ne contacte plus GitHub.
 - **Procéder automatiquement aux mises à jour lorsque possible** (désactivé par défaut): une fois par jour, la boîte cherche elle-même une nouvelle version sur GitHub et l'installe, sans page ouverte. Elle attend pour cela d'être connectée au Wi-Fi de la maison, de connaître l'heure (NTP), et une minute sans histoire ni carte posée, réveil compris: un enfant qui réveille la boîte pour écouter n'est jamais gêné. Une carte posée pendant la recherche reporte l'installation. La date de la dernière recherche est affichée dans les réglages. Une page ouverte pendant une mise à jour automatique en affiche l'avancement, comme pour une mise à jour lancée à la main.
@@ -149,5 +149,5 @@ Conditions: réglages déverrouillés, aucune histoire en cours, et la boîte co
 
 Les cartes associées sont d'abord sauvegardées sur la carte SD, puis la boîte efface toute sa configuration (réglages, Wi-Fi, verrouillage, cartes et signets) et redémarre en point d'accès `TotoBox-XXXX` avec le mot de passe de l'étiquette, déverrouillée. Les fichiers de la carte SD sont conservés.
 
-- **Depuis l'interface**: Réglages > « Réinitialiser la boîte… », taper `EFFACER`. Seulement déverrouillée et à l'arrêt. Si la sauvegarde échoue, rien n'est effacé.
+- **Depuis l'interface**: Réglages > Boîte > « Réinitialiser la boîte… », taper `EFFACER`. Seulement déverrouillée et à l'arrêt. Si la sauvegarde échoue, rien n'est effacé.
 - **En atelier, boîte démontée** (code et cartes maîtresses perdus): relier GPIO47 à la masse au démarrage. La bande se remplit de rouge pendant 5 s (retirer le pont annule), puis clignote en vert une fois la configuration effacée: retirer le pont, la boîte redémarre. Volontairement inaccessible sans démontage. Voir [hardware/electronics.md](../hardware/electronics.md).

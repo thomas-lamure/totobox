@@ -418,126 +418,132 @@
           <h2>Réglages</h2>
           <button class="icon-btn" value="cancel" aria-label="Fermer"><svg><use href="#i-close" /></svg></button>
         </div>
+        <!-- Trois onglets, chacun enregistré seul: « Enregistrer » ne concerne que l'onglet affiché. -->
+        <div class="tabs" role="tablist" aria-label="Réglages">
+          <button type="button" role="tab" data-settings-tab="listening" aria-selected="true">Écoute</button>
+          <button type="button" role="tab" data-settings-tab="network" aria-selected="false">Réseau</button>
+          <button type="button" role="tab" data-settings-tab="box" aria-selected="false">Boîte</button>
+        </div>
         <div class="sheet-body">
-          <div class="stack">
-            <div class="group-title">Volume autorisé</div>
-            <div class="split">
-              <label class="field">
-                Minimum <span class="hint"><span id="vol-min-out"></span> %</span>
-                <input id="vol-min" type="range" min="0" max="100" step="1" />
-              </label>
-              <label class="field">
-                Maximum <span class="hint"><span id="vol-max-out"></span> %</span>
-                <input id="vol-max" type="range" min="0" max="100" step="1" />
-              </label>
+          <div class="stack settings-panel" data-settings-panel="listening" role="tabpanel">
+            <div class="stack">
+              <div class="group-title">Volume autorisé</div>
+              <div class="split">
+                <label class="field">
+                  Minimum <span class="hint"><span id="vol-min-out"></span> %</span>
+                  <input id="vol-min" type="range" min="0" max="100" step="1" />
+                </label>
+                <label class="field">
+                  Maximum <span class="hint"><span id="vol-max-out"></span> %</span>
+                  <input id="vol-max" type="range" min="0" max="100" step="1" />
+                </label>
+              </div>
+              <p class="small">Volume actuel : <span id="vol-current"></span> %. Le bouton de la boîte reste dans ces limites.</p>
             </div>
-            <p class="small">Volume actuel : <span id="vol-current"></span> %. Le bouton de la boîte reste dans ces limites.</p>
-          </div>
-
-          <div class="stack">
-            <div class="group-title">Wi-Fi de la maison</div>
-            <label class="field">
-              Nom du réseau
-              <input id="wifi-ssid" type="text" autocomplete="off" autocapitalize="off" />
-            </label>
-            <label class="field">
-              Mot de passe
-              <input id="wifi-password" type="password" placeholder="Inchangé" autocomplete="new-password" />
-            </label>
-            <button id="wifi-forget" class="btn danger" type="button" hidden>Oublier ce réseau</button>
-            <label class="field">
-              Nom de la boîte sur le réseau <span id="hostname-preview" class="hint"></span>
-              <input id="hostname" type="text" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false" />
-            </label>
-            <p class="small">Lettres, chiffres et tirets. Utile pour distinguer plusieurs boîtes.</p>
-          </div>
-
-          <div class="stack">
-            <div class="group-title">Point d'accès de secours</div>
-            <p class="small">Créé par la boîte quand le Wi-Fi de la maison est introuvable.</p>
-            <label class="field">
-              Nom
-              <input id="ap-ssid" type="text" autocomplete="off" autocapitalize="off" />
-            </label>
-            <label class="field">
-              Mot de passe <span class="hint">8 caractères minimum</span>
-              <input id="ap-password" type="password" placeholder="Inchangé" autocomplete="new-password" />
-            </label>
-            <p class="small">Appliqué sans redémarrage. Depuis le point d'accès, la boîte essaie le Wi-Fi de la maison sans couper le point d'accès, et affiche le résultat.</p>
-          </div>
-
-          <div class="stack">
-            <div class="group-title">Verrouillage</div>
-            <p id="lock-summary" class="small"></p>
-            <div id="lock-cards" class="list" hidden></div>
-            <div class="toolbar" style="margin: 0">
-              <button id="lock-enable" class="btn" type="button"><svg><use href="#i-lock" /></svg>Activer</button>
-              <button id="lock-add-card" class="btn" type="button" hidden><svg><use href="#i-plus" /></svg>Ajouter une carte</button>
-              <button id="lock-change-pin" class="btn" type="button" hidden>Changer le code</button>
-              <button id="lock-disable" class="btn danger" type="button" hidden>Désactiver</button>
+            <div class="stack">
+              <div class="group-title">Verrouillage</div>
+              <p id="lock-summary" class="small"></p>
+              <div id="lock-cards" class="list" hidden></div>
+              <div class="toolbar" style="margin: 0">
+                <button id="lock-enable" class="btn" type="button"><svg><use href="#i-lock" /></svg>Activer</button>
+                <button id="lock-add-card" class="btn" type="button" hidden><svg><use href="#i-plus" /></svg>Ajouter une carte</button>
+                <button id="lock-change-pin" class="btn" type="button" hidden>Changer le code</button>
+                <button id="lock-disable" class="btn danger" type="button" hidden>Désactiver</button>
+              </div>
             </div>
           </div>
-
-          <div id="settings-updates" class="stack">
-            <div class="group-title">Mises à jour</div>
-            <label class="switch">
-              <input id="settings-update-notify" type="checkbox" />
-              <span><strong>Être informé des mises à jour de la TotoBox</strong><span class="small muted">La page regarde sur GitHub, à son ouverture puis une fois par jour, si une nouvelle version est publiée.</span></span>
-            </label>
-            <label class="switch">
-              <input id="settings-auto-update" type="checkbox" />
-              <span><strong>Procéder automatiquement aux mises à jour lorsque possible</strong><span class="small muted">Une fois par jour, la boîte cherche elle-même une nouvelle version et l'installe : connectée au Wi-Fi de la maison, jamais pendant une histoire ni dans la minute qui suit son réveil ou une écoute. Histoires, cartes et réglages sont conservés.</span></span>
-            </label>
-            <p id="settings-update-last" class="small muted"></p>
-          </div>
-
-          <div id="settings-ha" class="stack">
-            <div class="group-title">Home Assistant</div>
-            <label class="switch">
-              <input id="ha-enabled" type="checkbox" />
-              <span><strong>Relier la boîte à Home Assistant</strong><span class="small muted">La boîte y apparaît (état, histoire en cours, volume, arrêt) et chaque carte posée devient une étiquette, utilisable dans les automatisations. Il faut un broker MQTT, comme le module Mosquitto de Home Assistant. Les histoires se lisent toujours sans Home Assistant.</span></span>
-            </label>
-            <div id="ha-fields" class="stack" hidden>
+          <div class="stack settings-panel" data-settings-panel="network" role="tabpanel" hidden>
+            <div class="stack">
+              <div class="group-title">Wi-Fi de la maison</div>
               <label class="field">
-                Adresse de Home Assistant <span class="hint">ou du broker MQTT</span>
-                <input id="ha-address" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="homeassistant.local" />
-              </label>
-              <p class="small">L'adresse de la page Home Assistant convient (http://192.168.1.10:8123); mqtt://adresse:port pour un broker sur un autre port.</p>
-              <label class="field">
-                Utilisateur MQTT
-                <input id="mqtt-user" type="text" maxlength="64" autocomplete="off" autocapitalize="off" spellcheck="false" />
+                Nom du réseau
+                <input id="wifi-ssid" type="text" autocomplete="off" autocapitalize="off" />
               </label>
               <label class="field">
-                Mot de passe MQTT
-                <input id="mqtt-password" type="password" maxlength="64" autocomplete="new-password" />
+                Mot de passe
+                <input id="wifi-password" type="password" placeholder="Inchangé" autocomplete="new-password" />
               </label>
-              <p id="ha-state" class="small muted"></p>
+              <button id="wifi-forget" class="btn danger" type="button" hidden>Oublier ce réseau</button>
+              <label class="field">
+                Nom de la boîte sur le réseau <span id="hostname-preview" class="hint"></span>
+                <input id="hostname" type="text" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false" />
+              </label>
+              <p class="small">Lettres, chiffres et tirets. Utile pour distinguer plusieurs boîtes.</p>
+            </div>
+            <div class="stack">
+              <div class="group-title">Point d'accès de secours</div>
+              <p class="small">Créé par la boîte quand le Wi-Fi de la maison est introuvable.</p>
+              <label class="field">
+                Nom
+                <input id="ap-ssid" type="text" autocomplete="off" autocapitalize="off" />
+              </label>
+              <label class="field">
+                Mot de passe <span class="hint">8 caractères minimum</span>
+                <input id="ap-password" type="password" placeholder="Inchangé" autocomplete="new-password" />
+              </label>
+              <p class="small">Appliqué sans redémarrage. Depuis le point d'accès, la boîte essaie le Wi-Fi de la maison sans couper le point d'accès, et affiche le résultat.</p>
+            </div>
+            <div id="settings-ha" class="stack">
+              <div class="group-title">Home Assistant</div>
+              <label class="switch">
+                <input id="ha-enabled" type="checkbox" />
+                <span><strong>Relier la boîte à Home Assistant</strong><span class="small muted">La boîte y apparaît (état, histoire en cours, volume, arrêt) et chaque carte posée devient une étiquette, utilisable dans les automatisations. Il faut un broker MQTT, comme le module Mosquitto de Home Assistant. Les histoires se lisent toujours sans Home Assistant.</span></span>
+              </label>
+              <div id="ha-fields" class="stack" hidden>
+                <label class="field">
+                  Adresse de Home Assistant <span class="hint">ou du broker MQTT</span>
+                  <input id="ha-address" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="homeassistant.local" />
+                </label>
+                <p class="small">L'adresse de la page Home Assistant convient (http://192.168.1.10:8123); mqtt://adresse:port pour un broker sur un autre port.</p>
+                <label class="field">
+                  Utilisateur MQTT
+                  <input id="mqtt-user" type="text" maxlength="64" autocomplete="off" autocapitalize="off" spellcheck="false" />
+                </label>
+                <label class="field">
+                  Mot de passe MQTT
+                  <input id="mqtt-password" type="password" maxlength="64" autocomplete="new-password" />
+                </label>
+                <p id="ha-state" class="small muted"></p>
+              </div>
             </div>
           </div>
-
-          <div class="stack">
-            <div class="group-title">Boîte</div>
-            <dl id="device-info" class="kv"></dl>
-            <button id="firmware-open" class="btn" type="button" hidden></button>
-          </div>
-
-          <div class="stack">
-            <div class="group-title">Sauvegarde des cartes</div>
-            <p id="backup-info" class="small muted"></p>
-            <div class="toolbar" style="margin: 0">
-              <button id="backup-save" class="btn" type="button">Sauvegarder sur la carte SD</button>
-              <button id="backup-restore" class="btn" type="button">Restaurer</button>
+          <div class="stack settings-panel" data-settings-panel="box" role="tabpanel" hidden>
+            <div id="settings-updates" class="stack">
+              <div class="group-title">Mises à jour</div>
+              <label class="switch">
+                <input id="settings-update-notify" type="checkbox" />
+                <span><strong>Être informé des mises à jour de la TotoBox</strong><span class="small muted">La page regarde sur GitHub, à son ouverture puis une fois par jour, si une nouvelle version est publiée.</span></span>
+              </label>
+              <label class="switch">
+                <input id="settings-auto-update" type="checkbox" />
+                <span><strong>Procéder automatiquement aux mises à jour lorsque possible</strong><span class="small muted">Une fois par jour, la boîte cherche elle-même une nouvelle version et l'installe : connectée au Wi-Fi de la maison, jamais pendant une histoire ni dans la minute qui suit son réveil ou une écoute. Histoires, cartes et réglages sont conservés.</span></span>
+              </label>
+              <p id="settings-update-last" class="small muted"></p>
             </div>
-          </div>
+            <div class="stack">
+              <div class="group-title">Boîte</div>
+              <dl id="device-info" class="kv"></dl>
+              <button id="firmware-open" class="btn" type="button" hidden></button>
+            </div>
 
-          <div class="stack">
-            <div class="group-title">Remise à zéro</div>
-            <p class="small muted">Efface les réglages, le Wi-Fi, le verrouillage et les cartes associées (sauvegardées d'abord sur la carte SD). Les histoires de la carte SD sont conservées.</p>
-            <button id="factory-reset" class="btn danger" type="button">Réinitialiser la boîte…</button>
+            <div class="stack">
+              <div class="group-title">Sauvegarde des cartes</div>
+              <p id="backup-info" class="small muted"></p>
+              <div class="toolbar" style="margin: 0">
+                <button id="backup-save" class="btn" type="button">Sauvegarder sur la carte SD</button>
+                <button id="backup-restore" class="btn" type="button">Restaurer</button>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="group-title">Remise à zéro</div>
+              <p class="small muted">Efface les réglages, le Wi-Fi, le verrouillage et les cartes associées (sauvegardées d'abord sur la carte SD). Les histoires de la carte SD sont conservées.</p>
+              <button id="factory-reset" class="btn danger" type="button">Réinitialiser la boîte…</button>
+            </div>
           </div>
           <p id="settings-error" class="small" style="color: var(--red)" hidden></p>
         </div>
-        <div class="sheet-foot">
+        <div id="settings-foot" class="sheet-foot">
           <button class="btn" value="cancel">Annuler</button>
           <button id="settings-save" class="btn primary" type="button">Enregistrer</button>
         </div>
