@@ -554,3 +554,62 @@ function fmtGain(steps) {
   const db = steps * MP3_GAIN_STEP_DB;
   return `${db > 0 ? "+" : "−"}${String(Math.abs(db)).replace(".", ",")} dB`;
 }
+
+// ---------- Ordre des pistes ----------
+// La boîte lit les pistes d'un dossier dans l'ordre des noms, sans tenir compte de la casse (strcasecmp,
+// playback_rules::sortPlaylist): pour imposer un ordre, la page renomme les fichiers avec un numéro devant.
+
+// Même comparaison que strcasecmp côté boîte (minuscules ASCII seulement, octets UTF-8 ensuite).
+function compareTrackNames(a, b) {
+  const bytes = (value) => new TextEncoder().encode(String(value).replace(/[A-Z]/g, (c) => c.toLowerCase()));
+  const left = bytes(a);
+  const right = bytes(b);
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    if (left[i] !== right[i]) return left[i] - right[i];
+  }
+  return left.length - right.length;
+}
+
+// « 03_Le loup.mp3 » -> { digits: "03", sep: "_", rest: "Le loup", ext: ".mp3" }; null sans numéro devant.
+// Un nom fait d'un seul numéro (« 07.mp3 ») a un reste vide.
+function trackPrefix(name) {
+  const dot = name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : "";
+  const match = /^(\d{1,4})(?:(\s*[-_.]\s*|\s+)(\S.*))?$/.exec(stem);
+  if (!match) return null;
+  return { digits: match[1], sep: match[2] || "", rest: match[3] || "", ext };
+}
+
+// Renommages pour que `names` (noms de fichiers d'un même dossier, dans l'ordre voulu) soient lus dans cet ordre.
+// Le style déjà présent est repris (« 01_ », « 1 - », « 001. »…), sinon « 01-». Rend les seuls changements,
+// [{ from, to }], et `swap`: vrai si un nom visé est encore porté par un autre fichier (renommer en deux temps).
+function trackOrderPlan(names) {
+  const parsed = names.map(trackPrefix);
+  const seps = new Map();
+  let width = 2;
+  for (const item of parsed) {
+    if (!item) continue;
+    width = Math.max(width, item.digits.length);
+    if (item.sep) seps.set(item.sep, (seps.get(item.sep) || 0) + 1);
+  }
+  const sep = [...seps.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
+  width = Math.max(width, String(names.length).length);
+  const renames = [];
+  names.forEach((name, index) => {
+    const item = parsed[index];
+    const number = String(index + 1).padStart(width, "0");
+    let to;
+    if (!item) to = `${number}${sep}${name}`;
+    else if (!item.rest) to = `${number}${item.ext}`;
+    else to = `${number}${sep}${item.rest}${item.ext}`;
+    if (to !== name) renames.push({ from: name, to });
+  });
+  // Carte FAT: les noms ne se distinguent pas par la casse.
+  const taken = new Set(names.map((name) => name.toLowerCase()));
+  const swap = renames.some((item) => {
+    const target = item.to.toLowerCase();
+    return taken.has(target) && target !== item.from.toLowerCase();
+  });
+  return { renames, swap };
+}

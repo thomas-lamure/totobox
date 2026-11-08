@@ -9,7 +9,15 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 - Lecture en cours: barre de progression et durée de la piste (`activeDurationMs` dans `/api/status`).
 - Cartes: un emoji et une couleur par carte (fiche de la carte > Apparence), affichés sur la tuile; enregistrés avec la carte, y compris dans la sauvegarde sur la carte SD. Une recherche apparaît à partir de neuf cartes.
 - Réglages en trois onglets, chacun enregistré seul: Écoute (volume autorisé, verrouillage), Réseau (Wi-Fi, point d'accès, Home Assistant), Boîte (mises à jour, informations, sauvegarde, remise à zéro). Le bouton dit ce qu'il enregistre, et les interrupteurs des mises à jour s'enregistrent dès qu'on les change: un seul « Enregistrer » pour neuf sections ne disait pas ce qui était pris en compte.
+- Fichiers: « Sélectionner » pour déplacer, télécharger ou mettre à la corbeille plusieurs éléments d'un coup.
+- Fichiers: « Ordre des pistes » range les pistes d'un dossier (glisser ou flèches) et les renomme `01-`, `02-`…, en gardant le style de numéros déjà présent (`01_`, `1 - `…). Les cartes suivent leur piste, et un signet sur ce dossier reste sur la même piste.
+- Envoi de fichiers: une file montre l'avancement de chaque fichier, avec un bouton « Annuler »; un fichier refusé n'arrête plus les suivants.
+- Fiche d'une carte en cours de lecture: la position en cours au lieu du signet enregistré, périmé tant que la carte est posée.
 - Espace de la carte SD: l'accueil et les réglages affichent l'espace utilisé (« 18 Mo utilisés sur 32 Go »); l'espace libre arrondi donnait « 32 Go libres sur 32 Go » sur une carte presque vide.
+
+### Firmware
+
+- Un envoi de fichier interrompu (annulé depuis la page, connexion perdue) efface le fichier à moitié écrit au lieu de le laisser sur la carte SD.
 
 ## 1.4.1 - 2026-11-08
 

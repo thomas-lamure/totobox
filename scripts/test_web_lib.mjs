@@ -14,7 +14,7 @@ const NAMES = [
   "fmtBytes", "plural", "isAudioPath", "parentDir", "safeFolderName", "canMoveInto", "allFolders",
   "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths", "originalPath", "trashItems", "folderDownloadPlan", "cardEmoji", "filterCards", "CARD_COLORS", "compareVersions", "parseRelease", "plainNotes",
   "mp3FrameHeader", "firstMp3Frame", "applyMp3Gain", "mp3Crc", "readBits", "writeBits", "kWeighting", "measureLevels", "mergeLevels",
-  "gatedLoudness", "mp3GainSteps", "fmtGain",
+  "gatedLoudness", "mp3GainSteps", "fmtGain", "compareTrackNames", "trackPrefix", "trackOrderPlan",
 ];
 const source = readFileSync(new URL("../web/lib.js", import.meta.url), "utf8");
 // TextEncoder: présent dans tous les navigateurs, absent du contexte isolé.
@@ -430,4 +430,41 @@ test("recherche de cartes sans accents ni casse", () => {
   assert.deepEqual(labels("NOEL"), ["/content/music/comptines-de-noel"]);
   assert.deepEqual(labels("fee"), ["Fée Clochette"]);
   assert.deepEqual(labels("zzz"), []);
+});
+
+test("ordre des pistes: même tri que la boîte", () => {
+  const sorted = ["b.mp3", "A.mp3", "_x.mp3", "a1.mp3", "10-c.mp3", "02-d.mp3"].sort(lib.compareTrackNames);
+  assert.deepEqual([...sorted], ["02-d.mp3", "10-c.mp3", "_x.mp3", "A.mp3", "a1.mp3", "b.mp3"]);
+});
+
+test("ordre des pistes: numéro devant le nom", () => {
+  assert.deepEqual({ ...lib.trackPrefix("03_Le loup.mp3") }, { digits: "03", sep: "_", rest: "Le loup", ext: ".mp3" });
+  assert.deepEqual({ ...lib.trackPrefix("1 - Intro.mp3") }, { digits: "1", sep: " - ", rest: "Intro", ext: ".mp3" });
+  assert.deepEqual({ ...lib.trackPrefix("07.mp3") }, { digits: "07", sep: "", rest: "", ext: ".mp3" });
+  assert.equal(lib.trackPrefix("Chapitre 1.mp3"), null);
+  assert.equal(lib.trackPrefix("2001 odyssee.mp3").digits, "2001");
+  assert.equal(lib.trackPrefix("12abc.mp3"), null);
+});
+
+test("ordre des pistes: renommages", () => {
+  const plain = (plan) => [...plan.renames].map(({ from, to }) => `${from} > ${to}`);
+  // Sans numéro: « 01-».
+  let plan = lib.trackOrderPlan(["Loup.mp3", "Agneau.mp3"]);
+  assert.deepEqual(plain(plan), ["Loup.mp3 > 01-Loup.mp3", "Agneau.mp3 > 02-Agneau.mp3"]);
+  assert.equal(plan.swap, false);
+  // Numéros « 01_ » déjà là: même style, deux fichiers échangés.
+  plan = lib.trackOrderPlan(["02_b.mp3", "01_a.mp3", "03_c.mp3"]);
+  assert.deepEqual(plain(plan), ["02_b.mp3 > 01_b.mp3", "01_a.mp3 > 02_a.mp3"]);
+  assert.equal(plan.swap, false);
+  // Un nom visé encore porté par un autre fichier: deux temps.
+  plan = lib.trackOrderPlan(["02.mp3", "01.mp3"]);
+  assert.deepEqual(plain(plan), ["02.mp3 > 01.mp3", "01.mp3 > 02.mp3"]);
+  assert.equal(plan.swap, true);
+  // Style majoritaire repris, nouveau fichier numéroté pareil, largeur suivant le nombre de pistes.
+  plan = lib.trackOrderPlan(["1 - a.mp3", "2 - b.mp3", "c.mp3"]);
+  assert.deepEqual(plain(plan), ["1 - a.mp3 > 01 - a.mp3", "2 - b.mp3 > 02 - b.mp3", "c.mp3 > 03 - c.mp3"]);
+  const many = Array.from({ length: 120 }, (_, i) => `t${i}.mp3`);
+  assert.equal(lib.trackOrderPlan(many).renames[0].to, "001-t0.mp3");
+  // Déjà dans l'ordre: rien à faire.
+  assert.equal(lib.trackOrderPlan(["01-a.mp3", "02-b.mp3"]).renames.length, 0);
 });

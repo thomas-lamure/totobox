@@ -20,7 +20,7 @@ Colonnes « Verrouillée » et « En lecture »: la route est-elle servie? Elles
 | `POST /api/lock/pin` | non | oui | `{pin}` |
 | `POST /api/lock/cards` | non | oui | `{action:"add"/"remove", cardUid, cardLabel}` |
 | `GET /api/library` | non | non | arborescence de `/content`, espace SD |
-| `POST /api/upload` | non | non | multipart, tags ID3 retirés à l'écriture |
+| `POST /api/upload` | non | non | multipart, tags ID3 retirés à l'écriture. La page envoie un fichier par requête (file d'envoi annulable); un envoi interrompu (annulé, connexion perdue) efface le fichier à moitié écrit |
 | `GET /api/download?path=` | non | non | fichier audio de `/content` (hors corbeille) en pièce jointe (`Content-Disposition`, nom UTF-8); un dossier part en archive ZIP sans compression (`dossier.zip`, `totobox.zip` pour `/content`, sous-dossiers compris, fichiers audio seulement, 2000 fichiers et 4 Go au plus). Envoyé par morceaux sans bloquer la boîte, interrompu si une histoire démarre. Un seul à la fois. Erreurs: `invalid_path`, `not_found`, `sd_unavailable`, `empty_folder`, `too_many_files`, `too_large` |
 | `POST /api/folder` | non | non | crée un dossier |
 | `POST /api/rename` | non | non | renomme fichier ou dossier |

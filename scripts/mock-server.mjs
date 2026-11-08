@@ -821,6 +821,10 @@ createServer(async (request, response) => {
       return response.end(mockPage());
     }
     if (url.pathname === "/api/upload" && request.method === "POST") {
+      // Écriture sur la carte à ~400 Ko/s (2,5 s au plus): laisse le temps de voir la file et d'annuler. Un envoi
+      // annulé entre-temps n'écrit rien, comme la boîte qui efface le fichier partiel.
+      await new Promise((resolve) => setTimeout(resolve, Math.min(2500, raw.length / 400)));
+      if (response.destroyed || request.socket.destroyed) return;
       const [code, data] = await handleUpload(request, raw);
       return send(response, code, data);
     }

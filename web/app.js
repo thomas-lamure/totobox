@@ -97,6 +97,8 @@ const app = {
   view: "home",
   filesMode: "files",
   currentDir: LIBRARY_ROOT,
+  // Chemins cochés dans l'écran Fichiers (null hors du mode sélection).
+  selection: null,
   dismissedUid: "",
   lastStatusKey: "",
   // Dernière IP connue de la boîte sur le Wi-Fi maison (repli quand le nom .local ne répond plus).
@@ -1090,7 +1092,7 @@ $("assign-new-folder").addEventListener("click", async () => {
   if (!name) return;
   const folder = await createFolder(LIBRARY_ROOT, name);
   if (!folder) return;
-  const ok = await uploadWithProgress(files, folder, $("assign-progress"), $("assign-progress-label"), $("assign-progress-bar"));
+  const ok = await uploadWithProgress(files.map((file) => ({ file, target: folder })), $("assign-progress"));
   await loadLibrary();
   if (ok) {
     assign.folder = folder;
@@ -1144,11 +1146,21 @@ function openCard(index) {
   openDialog($("card-dialog"));
 }
 
+// Carte posée sur la boîte: son marque-page enregistré est périmé, la position vient du statut.
+function activeCardText(uid) {
+  const status = app.status;
+  if (!status || status.activeCardUid !== uid || (status.state !== "playing" && status.state !== "paused")) return "";
+  const track = status.activeTrackCount > 1 ? `piste ${status.activeTrackIndex + 1}/${status.activeTrackCount}, ` : "";
+  return `${status.state === "playing" ? "En lecture" : "En pause"} : ${track}${fmtClock(status.activePositionMs)}`;
+}
+
 function renderCardDialog(binding) {
   $("card-folder").textContent = relPath(editing.folder) || "Aucun";
   $("card-folder-icon").setAttribute("href", isAudioPath(editing.folder) ? "#i-music" : "#i-folder");
-  const resettable = !editing.resetBookmark && (binding.resumeMs || binding.resumeTrackIndex);
-  $("card-bookmark").textContent = editing.resetBookmark ? "Recommencera au début" : bookmarkText(binding);
+  // Pendant la lecture, la boîte réécrit le marque-page au retrait de la carte: le remettre à zéro serait perdu.
+  const live = editing.resetBookmark ? "" : activeCardText(editing.uid);
+  const resettable = !live && !editing.resetBookmark && (binding.resumeMs || binding.resumeTrackIndex);
+  $("card-bookmark").textContent = editing.resetBookmark ? "Recommencera au début" : live || bookmarkText(binding);
   $("card-reset-bookmark").hidden = !resettable;
 }
 
@@ -1453,38 +1465,36 @@ async function normalizeMp3(file, onRatio) {
   return { file: new Blob([bytes], { type: file.type || "audio/mpeg" }), steps };
 }
 
-// onPrepare(index, ratio): analyse du fichier `index` avant l'envoi.
-async function uploadFiles(files, targetDir, onProgress, onPrepare) {
+// Un fichier par requête: avancement fichier par fichier, et une annulation n'abandonne que le fichier en cours
+// (la boîte efface ce qu'elle en avait écrit). Analyse du volume (onPrepare) avant l'envoi.
+async function uploadOne(file, targetDir, { onProgress, onPrepare, onXhr }) {
+  let payloadFile = file;
+  try {
+    payloadFile = await stripId3(file);
+  } catch (error) {
+    payloadFile = file;
+  }
+  const strippedBytes = file.size - payloadFile.size;
+  let gain = 0;
+  if (normalizeEnabled()) {
+    try {
+      const named = new File([payloadFile], file.name, { type: file.type });
+      const result = await normalizeMp3(named, onPrepare);
+      payloadFile = result.file;
+      gain = result.steps;
+    } catch (error) {
+      // Analyse impossible (mémoire, format inattendu): le fichier part tel quel.
+    }
+  }
   const formData = new FormData();
   formData.append("targetPath", targetDir);
   formData.append("conflictMode", "rename");
-  let strippedBytes = 0;
-  const gains = [];
-  const normalize = normalizeEnabled();
-  for (const [index, file] of files.entries()) {
-    let payloadFile = file;
-    try {
-      payloadFile = await stripId3(file);
-    } catch (error) {
-      payloadFile = file;
-    }
-    strippedBytes += file.size - payloadFile.size;
-    if (normalize) {
-      try {
-        const named = new File([payloadFile], file.name, { type: file.type });
-        const result = await normalizeMp3(named, (ratio) => onPrepare(index, ratio));
-        payloadFile = result.file;
-        if (result.steps) gains.push(result.steps);
-      } catch (error) {
-        // Analyse impossible (mémoire, format inattendu): le fichier part tel quel.
-      }
-    }
-    formData.append("files", payloadFile, file.name);
-  }
+  formData.append("files", payloadFile, file.name);
 
   app.busyRequests += 1;
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
+    const done = (result) => resolve({ strippedBytes, gain, data: {}, ...result });
     xhr.addEventListener("loadend", () => (app.busyRequests -= 1));
     xhr.open("POST", "/api/upload");
     xhr.upload.addEventListener("progress", (event) => {
@@ -1498,10 +1508,11 @@ async function uploadFiles(files, targetDir, onProgress, onPrepare) {
         data = {};
       }
       const ok = xhr.status >= 200 && xhr.status < 300 && data.ok !== false;
-      resolve({ ok, error: ok ? "" : data.error || `http_${xhr.status}`, data, strippedBytes, gains });
+      done({ ok, error: ok ? "" : data.error || `http_${xhr.status}`, data });
     });
-    xhr.addEventListener("error", () => resolve({ ok: false, error: "network", data: {}, strippedBytes, gains }));
-    xhr.addEventListener("abort", () => resolve({ ok: false, error: "upload_aborted", data: {}, strippedBytes, gains }));
+    xhr.addEventListener("error", () => done({ ok: false, error: "network" }));
+    xhr.addEventListener("abort", () => done({ ok: false, error: "cancelled" }));
+    onXhr(xhr);
     xhr.send(formData);
   });
 }
@@ -1513,38 +1524,152 @@ function gainSummary(gains) {
   return ` Volume égalisé pour ${plural(gains.length, "fichier", "fichiers")} : ${distinct.join(", ")}.`;
 }
 
-async function uploadWithProgress(files, targetDir, wrap, label, bar) {
-  wrap.hidden = false;
-  bar.style.width = "0%";
-  const sending = `Envoi de ${plural(files.length, "fichier", "fichiers")}…`;
-  label.textContent = sending;
-  const result = await uploadFiles(
-    files,
-    targetDir,
-    (ratio) => {
-      bar.style.width = `${Math.round(ratio * 100)}%`;
-      label.textContent = `${sending} ${Math.round(ratio * 100)} %`;
-    },
-    (index, ratio) => {
-      bar.style.width = `${Math.round(((index + ratio) / files.length) * 100)}%`;
-      label.textContent = files.length > 1 ? `Analyse du volume (${index + 1}/${files.length})…` : "Analyse du volume…";
-    },
+// Erreurs propres à un fichier: les suivants partent quand même. Les autres (réseau, carte pleine, lecture
+// lancée…) arrêtent la file.
+const UPLOAD_SKIP_ERRORS = new Set(["invalid_file_name", "file_exists"]);
+let uploadQueue = null;
+
+function renderUploadQueue() {
+  const queue = uploadQueue;
+  if (!queue) return;
+  const done = queue.items.filter((item) => item.state === "done").length;
+  const total = queue.items.reduce((sum, item) => sum + item.file.size, 0) || 1;
+  const sent = queue.items.reduce((sum, item) => sum + item.file.size * item.ratio, 0);
+  queue.wrap.querySelector("[data-queue-label]").textContent = queue.cancelling
+    ? "Annulation…"
+    : `Envoi : ${done}/${queue.items.length} ${queue.items.length > 1 ? "fichiers" : "fichier"}`;
+  queue.wrap.querySelector("[data-queue-bar]").style.width = `${Math.round((sent / total) * 100)}%`;
+  queue.wrap.querySelector("[data-queue-cancel]").disabled = queue.cancelling;
+  const states = {
+    waiting: () => "En attente",
+    analysing: (item) => `Analyse du volume… ${Math.round(item.prepare * 100)} %`,
+    // Tout est parti: la boîte finit d'écrire sur la carte avant de répondre.
+    sending: (item) => (item.ratio >= 1 ? "Écriture sur la carte…" : `${Math.round(item.ratio * 100)} %`),
+    done: (item) => (item.gain ? `Ajouté · ${fmtGain(item.gain)}` : "Ajouté"),
+    failed: (item) => errorText(item.error),
+    cancelled: () => "Annulé",
+  };
+  const tones = { done: "ok", failed: "bad", cancelled: "muted" };
+  setHtml(
+    queue.wrap.querySelector("[data-queue-list]"),
+    queue.items
+      .map(
+        (item) => `
+        <div class="queue-item ${tones[item.state] || ""}">
+          <span class="queue-name">${esc(item.file.name)}</span>
+          <span class="queue-state">${esc(states[item.state](item))}</span>
+        </div>`,
+      )
+      .join(""),
   );
-  wrap.hidden = true;
-  if (!result.ok) {
-    toast(errorText(result.error), true);
-    // Échec réseau pendant l'envoi: typique d'un navigateur de portail captif qui coupe les gros envois.
-    if (result.error === "network" || result.error === "upload_aborted" || result.error === "http_0") {
-      showUploadHelp();
+  // Le fichier en cours reste visible dans une longue file.
+  const current = queue.items.findIndex((item) => item.state === "analysing" || item.state === "sending");
+  const list = queue.wrap.querySelector("[data-queue-list]");
+  if (current >= 0 && list.children[current]) {
+    const row = list.children[current];
+    if (row.offsetTop < list.scrollTop || row.offsetTop + row.offsetHeight > list.scrollTop + list.clientHeight) {
+      list.scrollTop = row.offsetTop - list.offsetTop;
     }
+  }
+}
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("[data-queue-cancel]") || !uploadQueue) return;
+  uploadQueue.cancelling = true;
+  if (uploadQueue.xhr) uploadQueue.xhr.abort();
+  renderUploadQueue();
+});
+
+// jobs: [{ file, target }]. Vrai si tous les fichiers sont arrivés.
+async function uploadWithProgress(jobs, wrap) {
+  if (uploadQueue) {
+    toast("Un envoi est déjà en cours.", true);
     return false;
   }
-  const saved = result.strippedBytes + (result.data.metadataBytesStripped || 0);
-  toast(
-    `${plural(result.data.filesUploaded || files.length, "fichier ajouté", "fichiers ajoutés")}${saved ? ` (${fmtBytes(saved)} de pochettes et tags retirés)` : ""}.${gainSummary(result.gains)}`,
-  );
+  const queue = {
+    wrap,
+    items: jobs.map((job) => ({ ...job, state: "waiting", ratio: 0, prepare: 0, gain: 0, error: "" })),
+    xhr: null,
+    cancelling: false,
+  };
+  uploadQueue = queue;
+  wrap.hidden = false;
+  renderUploadQueue();
+  let strippedBytes = 0;
+  let stopError = "";
+  const gains = [];
+  for (const item of queue.items) {
+    if (queue.cancelling || stopError) {
+      item.state = "cancelled";
+      continue;
+    }
+    item.state = "analysing";
+    renderUploadQueue();
+    const result = await uploadOne(item.file, item.target, {
+      onPrepare: (ratio) => {
+        item.prepare = ratio;
+        renderUploadQueue();
+      },
+      onProgress: (ratio) => {
+        item.state = "sending";
+        item.ratio = ratio;
+        renderUploadQueue();
+      },
+      onXhr: (xhr) => {
+        queue.xhr = xhr;
+        item.state = "sending";
+        renderUploadQueue();
+        if (queue.cancelling) xhr.abort();
+      },
+    });
+    queue.xhr = null;
+    if (result.ok) {
+      item.state = "done";
+      item.ratio = 1;
+      item.gain = result.gain;
+      if (result.gain) gains.push(result.gain);
+      strippedBytes += result.strippedBytes + (result.data.metadataBytesStripped || 0);
+    } else if (result.error === "cancelled" || queue.cancelling) {
+      item.state = "cancelled";
+    } else {
+      item.state = "failed";
+      item.error = result.error;
+      if (!UPLOAD_SKIP_ERRORS.has(result.error)) stopError = result.error;
+    }
+    renderUploadQueue();
+  }
+  uploadQueue = null;
+  const added = queue.items.filter((item) => item.state === "done").length;
+  const failed = queue.items.filter((item) => item.state === "failed").length;
+  const addedText = added ? `${plural(added, "fichier ajouté", "fichiers ajoutés")}` : "Aucun fichier ajouté";
+  if (queue.cancelling) {
+    wrap.hidden = true;
+    toast(`Envoi annulé. ${addedText}.`);
+    return false;
+  }
+  if (stopError || failed) {
+    // La file reste affichée: on voit quel fichier n'est pas passé et pourquoi.
+    queue.wrap.querySelector("[data-queue-label]").textContent = `${addedText}, ${plural(failed, "échec", "échecs")}`;
+    queue.wrap.querySelector("[data-queue-cancel]").hidden = true;
+    queue.wrap.querySelector("[data-queue-close]").hidden = false;
+    toast(errorText(stopError || queue.items.find((item) => item.state === "failed").error), true);
+    // Échec réseau pendant l'envoi: typique d'un navigateur de portail captif qui coupe les gros envois.
+    if (stopError === "network" || stopError === "upload_aborted" || stopError === "http_0") showUploadHelp();
+    return false;
+  }
+  wrap.hidden = true;
+  toast(`${addedText}${strippedBytes ? ` (${fmtBytes(strippedBytes)} de pochettes et tags retirés)` : ""}.${gainSummary(gains)}`);
   return true;
 }
+
+document.addEventListener("click", (event) => {
+  const close = event.target.closest("[data-queue-close]");
+  if (!close) return;
+  const wrap = close.closest(".upload-queue");
+  wrap.hidden = true;
+  close.hidden = true;
+  wrap.querySelector("[data-queue-cancel]").hidden = false;
+});
 
 async function createFolder(parentPath, name) {
   const result = await api("/api/folder", { json: { parentPath, folderName: name } });
@@ -1600,6 +1725,12 @@ function renderFiles() {
     $("sd-meter-wrap").hidden = true;
   }
 
+  // Sélection et ordre des pistes: plus rien à cocher pendant la lecture, ni dans la corbeille.
+  if (app.selection && (busy || trashMode)) app.selection = null;
+  renderSelectBar();
+  $("files-select").hidden = busy || !lib || Boolean(app.selection);
+  $("files-order").hidden = busy || Boolean(app.selection) || trackFiles(app.currentDir).length < 2;
+
   if (trashMode) {
     renderTrash();
     return;
@@ -1628,6 +1759,7 @@ function renderFiles() {
   const query = $("files-search").value.trim().toLowerCase();
   const entries = listDir(app.currentDir).filter((entry) => !query || baseName(entry.path).toLowerCase().includes(query));
   const usedBy = new Map(bindings().map((binding) => [binding.mediaPath, binding.label || binding.uid]));
+  const selecting = Boolean(app.selection);
 
   if (!entries.length) {
     setHtml($("files-list"), `<div class="empty">${query ? "Rien ne correspond." : "Dossier vide. Ajoute des fichiers audio."}</div>`);
@@ -1643,6 +1775,20 @@ function renderFiles() {
           ? `${plural(entry.trackCount, "piste", "pistes")} · ≈ ${fmtDuration(entry.durationEstimateSec)}`
           : "Vide"
         : `${fmtBytes(entry.totalSize)} · ≈ ${fmtDuration(entry.durationEstimateSec)}`;
+      if (selecting) {
+        const selected = app.selection.has(entry.path);
+        return `
+        <div class="row${selected ? " selected" : ""}">
+          <button class="row-body select-row" type="button" data-select="${esc(entry.path)}" aria-pressed="${selected}">
+            <span class="select-box">${icon("check")}</span>
+            ${icon(isDir ? "folder" : "music")}
+            <span class="row-text">
+              <span class="row-title" style="display:block">${esc(baseName(entry.path))}</span>
+              <span class="small">${esc(details)}${card ? ` · carte « ${esc(card)} »` : ""}</span>
+            </span>
+          </button>
+        </div>`;
+      }
       return `
         <div class="row" ${busy ? "" : `draggable="true" data-path="${esc(entry.path)}"`}>
           ${icon(isDir ? "folder" : "music")}
@@ -1711,14 +1857,307 @@ document.addEventListener("click", (event) => {
   const dir = event.target.closest("#view-files [data-dir]");
   if (!dir) return;
   app.currentDir = dir.dataset.dir;
+  app.selection = null;
   $("files-search").value = "";
   renderFiles();
+});
+
+// ---------- Ordre des pistes ----------
+// La boîte lit les pistes par ordre alphabétique: la page renomme les fichiers avec un numéro devant
+// (trackOrderPlan, qui reprend le style déjà présent). Les cartes du dossier gardent leur marque-page sur la même
+// piste, celles d'un fichier suivent son nouveau nom.
+
+const order = { dir: "", original: [] };
+
+function orderNames() {
+  return [...$("order-list").querySelectorAll("[data-name]")].map((row) => row.dataset.name);
+}
+
+function renderOrderNumbers() {
+  const rows = [...$("order-list").querySelectorAll("[data-name]")];
+  rows.forEach((row, index) => {
+    row.querySelector(".order-num").textContent = index + 1;
+    row.querySelector("[data-order-up]").disabled = index === 0;
+    row.querySelector("[data-order-down]").disabled = index === rows.length - 1;
+  });
+  // Aperçu du style retenu: « 01_ », « 1 - »…
+  const plan = trackOrderPlan(orderNames());
+  const first = plan.renames[0];
+  const sample = first ? trackPrefix(first.to) : trackPrefix(orderNames()[0] || "");
+  const sep = sample && sample.sep ? sample.sep : "-";
+  const width = sample ? sample.digits.length : 2;
+  $("order-style").textContent = `${"1".padStart(width, "0")}${sep}`;
+  $("order-style-2").textContent = `${"2".padStart(width, "0")}${sep}`;
+}
+
+function openTrackOrder() {
+  order.dir = app.currentDir;
+  order.original = trackFiles(order.dir).map((entry) => baseName(entry.path));
+  setHtml(
+    $("order-list"),
+    order.original
+      .map((name) => {
+        const prefix = trackPrefix(name);
+        const shown = prefix && prefix.rest ? `${prefix.rest}${prefix.ext}` : name;
+        return `
+        <div class="row order-row" data-name="${esc(name)}">
+          <span class="order-handle" aria-hidden="true">⠿</span>
+          <span class="order-num"></span>
+          <span class="row-body"><span class="row-title" style="display:block">${esc(shown)}</span></span>
+          <button class="icon-btn" type="button" data-order-up aria-label="Monter">▲</button>
+          <button class="icon-btn" type="button" data-order-down aria-label="Descendre">▼</button>
+        </div>`;
+      })
+      .join(""),
+  );
+  renderOrderNumbers();
+  openDialog($("order-dialog"));
+}
+
+$("files-order").addEventListener("click", () => {
+  if (isPlaying()) {
+    toast(errorText("busy_playing"), true);
+    return;
+  }
+  openTrackOrder();
+});
+
+$("order-list").addEventListener("click", (event) => {
+  const up = event.target.closest("[data-order-up]");
+  const down = event.target.closest("[data-order-down]");
+  const row = event.target.closest(".order-row");
+  if (!row || (!up && !down)) return;
+  if (up && row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling);
+  if (down && row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row);
+  renderOrderNumbers();
+});
+
+// Glisser par la poignée, au doigt comme à la souris: la ligne est déplacée dans la liste pendant le geste.
+// Suivi sur window: déplacer la ligne dans la page lui fait perdre la capture du pointeur.
+$("order-list").addEventListener("pointerdown", (event) => {
+  const handle = event.target.closest(".order-handle");
+  if (!handle) return;
+  event.preventDefault();
+  const row = handle.closest(".order-row");
+  const list = $("order-list");
+  const pointerId = event.pointerId;
+  row.classList.add("dragging");
+  const onMove = (move) => {
+    if (move.pointerId !== pointerId) return;
+    move.preventDefault();
+    const others = [...list.querySelectorAll(".order-row")].filter((item) => item !== row);
+    const before = others.find((item) => {
+      const box = item.getBoundingClientRect();
+      return move.clientY < box.top + box.height / 2;
+    });
+    if (before) {
+      if (row.nextElementSibling !== before) list.insertBefore(row, before);
+    } else if (list.lastElementChild !== row) {
+      list.appendChild(row);
+    }
+    renderOrderNumbers();
+  };
+  const onEnd = (end) => {
+    if (end.pointerId !== pointerId) return;
+    row.classList.remove("dragging");
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onEnd);
+    window.removeEventListener("pointercancel", onEnd);
+  };
+  window.addEventListener("pointermove", onMove, { passive: false });
+  window.addEventListener("pointerup", onEnd);
+  window.addEventListener("pointercancel", onEnd);
+});
+
+$("order-save").addEventListener("click", async () => {
+  const dir = order.dir;
+  const names = orderNames();
+  const plan = trackOrderPlan(names);
+  if (!plan.renames.length) {
+    $("order-dialog").close();
+    toast("Les pistes sont déjà dans cet ordre.");
+    return;
+  }
+  $("order-save").disabled = true;
+  // Nom actuel sur la carte de chaque piste (nom d'origine -> nom courant).
+  const current = new Map(names.map((name) => [name, name]));
+  let error = "";
+  const rename = async (from, to) => {
+    const result = await api("/api/rename", { json: { path: `${dir}/${current.get(from)}`, name: to, conflictMode: "rename" } });
+    if (!result.ok) {
+      error = result.error;
+      return false;
+    }
+    current.set(from, baseName(result.data.renamedPath));
+    return true;
+  };
+  // Un nom visé encore porté par une autre piste: d'abord des noms provisoires, puis les noms définitifs.
+  if (plan.swap) {
+    for (const [index, item] of plan.renames.entries()) {
+      const ext = item.from.slice(item.from.lastIndexOf("."));
+      if (!(await rename(item.from, `ordre-provisoire-${index}${ext}`))) break;
+    }
+  }
+  if (!error) {
+    for (const item of plan.renames) {
+      if (!(await rename(item.from, item.to))) break;
+    }
+  }
+  $("order-save").disabled = false;
+
+  // Cartes: un fichier suit son nouveau nom; un dossier garde son marque-page sur la même piste.
+  const pairs = names.filter((name) => current.get(name) !== name).map((name) => [`${dir}/${name}`, `${dir}/${current.get(name)}`]);
+  const finalSorted = names.map((name) => current.get(name)).sort(compareTrackNames);
+  const relink = (list) => {
+    let changed = pairs.reduce((acc, [from, to]) => retargetMediaPaths(list, from, to) || acc, false);
+    for (const binding of list) {
+      if (binding.mediaPath !== dir || !binding.resumeTrackIndex) continue;
+      const track = order.original[binding.resumeTrackIndex];
+      const index = track ? finalSorted.indexOf(current.get(track)) : -1;
+      if (index >= 0 && index !== binding.resumeTrackIndex) {
+        binding.resumeTrackIndex = index;
+        changed = true;
+      }
+    }
+    return changed;
+  };
+  if (relink(bindings().map((b) => ({ ...b })))) await saveBindings(relink);
+
+  if (error) {
+    toast(`${errorText(error)} L'ordre n'a été appliqué qu'en partie.`, true);
+  } else {
+    $("order-dialog").close();
+    toast(`Ordre enregistré (${plural(plan.renames.length, "fichier renommé", "fichiers renommés")}).`);
+  }
+  await loadLibrary();
+  renderFiles();
+});
+
+// ---------- Sélection multiple ----------
+
+// Fichiers audio d'un dossier, dans l'ordre de lecture de la boîte.
+function trackFiles(dir) {
+  return listDir(dir)
+    .filter((entry) => entry.type !== "directory" && isAudioPath(entry.path))
+    .sort((a, b) => compareTrackNames(baseName(a.path), baseName(b.path)));
+}
+
+// Chemins cochés encore présents dans le dossier affiché.
+function selectedPaths() {
+  if (!app.selection) return [];
+  const here = new Set(listDir(app.currentDir).map((entry) => entry.path));
+  return [...app.selection].filter((path) => here.has(path));
+}
+
+function renderSelectBar() {
+  const active = Boolean(app.selection) && app.filesMode !== "trash";
+  $("select-bar").hidden = !active;
+  if (!active) return;
+  const count = selectedPaths().length;
+  $("select-count").textContent = count ? plural(count, "sélectionné", "sélectionnés") : "Rien de sélectionné";
+  const all = listDir(app.currentDir).length;
+  $("select-all").textContent = count && count === all ? "Aucun" : "Tout";
+  ["select-move", "select-download", "select-trash"].forEach((id) => ($(id).disabled = !count));
+}
+
+function endSelection() {
+  app.selection = null;
+  renderFiles();
+}
+
+$("files-select").addEventListener("click", () => {
+  app.selection = new Set();
+  renderFiles();
+});
+$("select-done").addEventListener("click", endSelection);
+$("select-all").addEventListener("click", () => {
+  const paths = listDir(app.currentDir).map((entry) => entry.path);
+  const allSelected = paths.length && selectedPaths().length === paths.length;
+  app.selection = new Set(allSelected ? [] : paths);
+  renderFiles();
+});
+$("files-list").addEventListener("click", (event) => {
+  const row = event.target.closest("[data-select]");
+  if (!row || !app.selection) return;
+  const path = row.dataset.select;
+  if (app.selection.has(path)) app.selection.delete(path);
+  else app.selection.add(path);
+  renderFiles();
+});
+
+$("select-trash").addEventListener("click", async () => {
+  const paths = selectedPaths();
+  if (!paths.length) return;
+  const confirmed = await ask({
+    title: `Mettre ${plural(paths.length, "élément", "éléments")} à la corbeille ?`,
+    message: "Ils pourront être restaurés depuis la corbeille.",
+    okLabel: "Mettre à la corbeille",
+    danger: true,
+  });
+  if (!confirmed) return;
+  let done = 0;
+  let error = "";
+  for (const path of paths) {
+    const result = await api("/api/delete", { json: { path } });
+    if (!result.ok) {
+      error = result.error;
+      break;
+    }
+    done += 1;
+  }
+  if (error) toast(`${errorText(error)} (${done}/${paths.length} mis à la corbeille)`, true);
+  else toast(`${plural(done, "élément mis", "éléments mis")} à la corbeille.`);
+  app.selection = null;
+  await loadLibrary();
+  renderFiles();
+});
+
+$("select-move").addEventListener("click", async () => {
+  const paths = selectedPaths();
+  if (!paths.length) return;
+  const target = await chooseMoveTarget(paths);
+  if (!target) return;
+  const moved = [];
+  let error = "";
+  for (const path of paths) {
+    if (!canMoveInto(path, target) || parentDir(path) === target) continue;
+    const result = await api("/api/move", { json: { path, targetDir: target } });
+    if (!result.ok) {
+      error = result.error;
+      break;
+    }
+    moved.push([path, result.data.movedPath]);
+  }
+  // Les cartes associées suivent, en un seul enregistrement.
+  await relinkMany(moved);
+  if (error) toast(`${errorText(error)} (${moved.length}/${paths.length} déplacés)`, true);
+  else toast(`${plural(moved.length, "élément déplacé", "éléments déplacés")} dans « ${relPath(target)} ».`);
+  app.selection = null;
+  await loadLibrary();
+  renderFiles();
+});
+
+$("select-download").addEventListener("click", async () => {
+  const paths = selectedPaths();
+  if (!paths.length) return;
+  const isDir = (path) => (findNode(app.library && app.library.entries, path) || {}).type === "directory";
+  if (canPickFolder()) {
+    await downloadFolderTo(paths);
+    return;
+  }
+  // Un téléchargement par élément (dossier en ZIP); le navigateur peut demander d'autoriser les téléchargements
+  // multiples. Espacés: certains navigateurs ignorent les liens cliqués trop vite.
+  for (const [index, path] of paths.entries()) {
+    if (index) await new Promise((resolve) => setTimeout(resolve, 800));
+    downloadFile(path, isDir(path));
+  }
+  if (paths.length > 1) toast(`${plural(paths.length, "téléchargement lancé", "téléchargements lancés")}.`);
 });
 
 $("files-upload").addEventListener("click", async () => {
   const files = await pickFiles();
   if (!files.length) return;
-  await uploadWithProgress(files, app.currentDir, $("files-progress"), $("files-progress-label"), $("files-progress-bar"));
+  await uploadWithProgress(files.map((file) => ({ file, target: app.currentDir })), $("files-progress"));
   await loadLibrary();
   renderFiles();
 });
@@ -1803,17 +2242,9 @@ async function uploadDropped(entries, files, baseDir) {
     return;
   }
 
-  // Un envoi par dossier de destination: la boîte reçoit un seul dossier cible par requête.
-  const groups = new Map();
-  for (const item of audio) {
-    const target = item.dir ? `${baseDir}/${item.dir}` : baseDir;
-    if (!groups.has(target)) groups.set(target, []);
-    groups.get(target).push(item.file);
-  }
-  for (const [target, groupFiles] of groups) {
-    const ok = await uploadWithProgress(groupFiles, target, $("files-progress"), $("files-progress-label"), $("files-progress-bar"));
-    if (!ok) break;
-  }
+  // Chaque fichier part dans son dossier de destination (sous-dossiers recréés par la boîte).
+  const jobs = audio.map((item) => ({ file: item.file, target: item.dir ? `${baseDir}/${item.dir}` : baseDir }));
+  await uploadWithProgress(jobs, $("files-progress"));
   if (ignored) toast(`${plural(ignored, "fichier non audio ignoré", "fichiers non audio ignorés")}.`);
   await loadLibrary();
   renderFiles();
@@ -1940,7 +2371,9 @@ function canPickFolder() {
 
 // Dossier recopié fichier par fichier dans le dossier choisi, avec la même arborescence que sur la carte.
 // Arborescence lue dans la bibliothèque déjà chargée (3 niveaux de sous-dossiers, comme l'écran Fichiers).
-async function downloadFolderTo(path) {
+// Accepte aussi plusieurs chemins (sélection): un fichier va à la racine du dossier choisi, un dossier y est recréé.
+async function downloadFolderTo(pathOrPaths) {
+  const paths = [].concat(pathOrPaths);
   if (isPlaying()) {
     toast(errorText("busy_playing"), true);
     return;
@@ -1951,14 +2384,26 @@ async function downloadFolderTo(path) {
   } catch (error) {
     return;  // choix annulé
   }
-  const plan = folderDownloadPlan(app.library && app.library.entries, path);
+  const entries = app.library && app.library.entries;
+  const plan = paths.flatMap((path) => {
+    const node = path === LIBRARY_ROOT ? { type: "directory" } : findNode(entries, path);
+    if (node && node.type !== "directory") return [{ path, dirs: [], name: baseName(path), size: node.totalSize || 0 }];
+    return folderDownloadPlan(entries, path);
+  });
   if (!plan.length) {
-    toast("Aucun fichier audio dans ce dossier.", true);
+    toast("Aucun fichier audio à télécharger.", true);
     return;
   }
+  if (uploadQueue) {
+    toast("Un envoi est en cours.", true);
+    return;
+  }
+  // Même bloc que la file d'envoi, sans liste ni annulation.
   const wrap = $("files-progress");
-  const label = $("files-progress-label");
-  const bar = $("files-progress-bar");
+  const label = wrap.querySelector("[data-queue-label]");
+  const bar = wrap.querySelector("[data-queue-bar]");
+  wrap.querySelector("[data-queue-cancel]").hidden = true;
+  setHtml(wrap.querySelector("[data-queue-list]"), "");
   const total = plan.reduce((sum, item) => sum + item.size, 0) || 1;
   let received = 0;
   wrap.hidden = false;
@@ -1994,16 +2439,21 @@ async function downloadFolderTo(path) {
     toast(ERRORS[code] ? errorText(code) : "Téléchargement interrompu (histoire lancée ou connexion perdue).", true);
   } finally {
     wrap.hidden = true;
+    wrap.querySelector("[data-queue-cancel]").hidden = false;
   }
 }
 
 // ---------- Déplacement ----------
 
-function chooseMoveTarget(path) {
+// Un chemin, ou plusieurs du même dossier (sélection).
+function chooseMoveTarget(pathOrPaths) {
+  const paths = [].concat(pathOrPaths);
   const dialog = $("move-dialog");
-  const current = parentDir(path);
-  const folders = [LIBRARY_ROOT, ...allFolders(app.library && app.library.entries)].filter((dir) => canMoveInto(path, dir));
-  $("move-title").textContent = `Déplacer « ${baseName(path)} »`;
+  const current = parentDir(paths[0]);
+  const folders = [LIBRARY_ROOT, ...allFolders(app.library && app.library.entries)].filter((dir) =>
+    paths.every((path) => canMoveInto(path, dir)),
+  );
+  $("move-title").textContent = paths.length > 1 ? `Déplacer ${plural(paths.length, "élément", "éléments")}` : `Déplacer « ${baseName(paths[0])} »`;
   $("move-search").value = "";
   const render = () => {
     const query = $("move-search").value.trim().toLowerCase();
@@ -2135,6 +2585,13 @@ async function trashPath(path) {
   toast("Mis à la corbeille.");
   await loadLibrary();
   renderFiles();
+}
+
+// Plusieurs éléments déplacés ou renommés: un seul enregistrement des cartes. pairs: [[ancien, nouveau]].
+async function relinkMany(pairs) {
+  const apply = (list) => pairs.reduce((changed, [oldPath, newPath]) => retargetMediaPaths(list, oldPath, newPath) || changed, false);
+  if (!pairs.length || !apply(bindings().map((b) => ({ ...b })))) return;
+  await saveBindings(apply);
 }
 
 // Un dossier renommé reste associé à ses cartes.
@@ -3191,6 +3648,7 @@ async function refreshStatus() {
   followFirmwareUpdate();
   renderHome();
   if (app.view === "files") renderFiles();
+  if ($("card-dialog").open) renderCardDialog(findBinding(editing.uid) || {});
   if (app.online && app.status && !isLocked()) {
     if (!app.status.setupDone && app.view === "home") openSetup();
     else if (app.view === "setup") renderSetup();

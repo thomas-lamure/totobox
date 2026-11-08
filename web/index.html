@@ -254,12 +254,33 @@
           </div>
           <div id="files-drop-hint" class="drop-hint small muted">Ou glisse ici des fichiers ou des dossiers depuis l'ordinateur.</div>
           <label class="check small"><input type="checkbox" data-normalize checked /> Égaliser le volume des MP3</label>
-          <div id="files-progress" class="card stack" hidden>
-            <div class="muted" id="files-progress-label">Envoi…</div>
-            <div class="progress"><div id="files-progress-bar" style="width: 0%"></div></div>
+          <div id="files-progress" class="card stack upload-queue" hidden>
+            <div class="queue-head">
+              <span class="muted" data-queue-label>Envoi…</span>
+              <button class="btn small-btn" type="button" data-queue-cancel>Annuler</button>
+              <button class="btn small-btn" type="button" data-queue-close hidden>Fermer</button>
+            </div>
+            <div class="progress"><div data-queue-bar style="width: 0%"></div></div>
+            <div class="queue-list" data-queue-list></div>
           </div>
-          <input id="files-search" type="search" placeholder="Rechercher dans ce dossier" style="margin-bottom: 12px" />
+          <input id="files-search" type="search" placeholder="Rechercher dans ce dossier" style="margin-bottom: 8px" />
+          <div class="list-tools">
+            <button id="files-select" class="btn ghost small-btn" type="button"><svg><use href="#i-check" /></svg>Sélectionner</button>
+            <button id="files-order" class="btn ghost small-btn" type="button" hidden><svg><use href="#i-music" /></svg>Ordre des pistes</button>
+          </div>
           <div id="files-list" class="list"></div>
+          <div id="select-bar" class="select-bar" hidden>
+            <div class="select-head">
+              <strong id="select-count">0 sélectionné</strong>
+              <button id="select-all" class="btn ghost small-btn" type="button">Tout</button>
+              <button id="select-done" class="btn ghost small-btn" type="button">Terminé</button>
+            </div>
+            <div class="select-actions">
+              <button id="select-move" class="btn small-btn" type="button"><svg><use href="#i-folder" /></svg>Déplacer</button>
+              <button id="select-download" class="btn small-btn" type="button"><svg><use href="#i-download" /></svg>Télécharger</button>
+              <button id="select-trash" class="btn danger small-btn" type="button"><svg><use href="#i-trash" /></svg>Corbeille</button>
+            </div>
+          </div>
         </div>
 
         <div id="trash-main" hidden>
@@ -316,9 +337,14 @@
           </div>
           <button id="assign-new-folder" class="btn" type="button"><svg><use href="#i-upload" /></svg>Créer un dossier et le remplir</button>
           <label class="check small"><input type="checkbox" data-normalize checked /> Égaliser le volume des MP3</label>
-          <div id="assign-progress" class="stack" hidden>
-            <div class="muted" id="assign-progress-label">Envoi…</div>
-            <div class="progress"><div id="assign-progress-bar" style="width: 0%"></div></div>
+          <div id="assign-progress" class="stack upload-queue" hidden>
+            <div class="queue-head">
+              <span class="muted" data-queue-label>Envoi…</span>
+              <button class="btn small-btn" type="button" data-queue-cancel>Annuler</button>
+              <button class="btn small-btn" type="button" data-queue-close hidden>Fermer</button>
+            </div>
+            <div class="progress"><div data-queue-bar style="width: 0%"></div></div>
+            <div class="queue-list" data-queue-list></div>
           </div>
         </div>
 
@@ -673,6 +699,23 @@
         <div class="sheet-body">
           <input id="move-search" data-enter="none" type="search" placeholder="Rechercher un dossier" />
           <div id="move-folders" class="list"></div>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="order-dialog">
+      <form method="dialog" class="sheet">
+        <div class="sheet-head">
+          <h2>Ordre des pistes</h2>
+          <button class="icon-btn" value="cancel" aria-label="Fermer"><svg><use href="#i-close" /></svg></button>
+        </div>
+        <div class="sheet-body">
+          <p class="muted small">Glisse les pistes par la poignée, ou utilise les flèches. Les fichiers seront renommés <span id="order-style" class="mono">01-</span>, <span id="order-style-2" class="mono">02-</span>… pour que la boîte les lise dans cet ordre.</p>
+          <div id="order-list" class="list order-list"></div>
+        </div>
+        <div class="sheet-foot">
+          <button class="btn" value="cancel">Annuler</button>
+          <button id="order-save" class="btn primary" type="button">Enregistrer</button>
         </div>
       </form>
     </dialog>

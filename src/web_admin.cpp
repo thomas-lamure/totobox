@@ -1327,8 +1327,16 @@ void WebAdmin::handleUploadData() {
   }
 
   if (upload.status == UPLOAD_FILE_ABORTED) {
+    // Envoi annulé depuis la page (ou connexion perdue): le fichier à moitié écrit ne doit pas rester sur la carte.
     if (uploadFile_) {
       uploadFile_.close();
+      if (!lastResolvedPath_.isEmpty() && SD.remove(lastResolvedPath_)) {
+        logLine("web", "Envoi interrompu, fichier partiel retiré: %s", lastResolvedPath_.c_str());
+        if (!uploadedPaths_.empty()) {
+          uploadedPaths_.pop_back();
+        }
+      }
+      sdStatsValid_ = false;
     }
     uploadError_ = "upload_aborted";
   }

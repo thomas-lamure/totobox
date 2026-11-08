@@ -1003,3 +1003,171 @@ dialog::backdrop {
 [hidden] {
   display: none !important;
 }
+
+/* File d'envoi: un fichier par ligne, état à droite. */
+.btn.small-btn {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+.queue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.queue-list {
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 14px;
+}
+.queue-list:empty {
+  display: none;
+}
+.queue-item {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.queue-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.queue-state {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.queue-item.ok .queue-state {
+  color: var(--green);
+}
+.queue-item.bad .queue-state {
+  color: var(--red);
+  white-space: normal;
+  text-align: right;
+}
+.queue-item.muted .queue-name {
+  color: var(--ink-3);
+}
+
+/* Sélection multiple dans l'écran Fichiers. */
+.list-tools {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.list-tools .btn {
+  color: var(--accent);
+}
+.select-box {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--line-strong);
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: var(--accent-ink);
+}
+.select-box svg {
+  width: 16px;
+  height: 16px;
+  visibility: hidden;
+}
+.row.selected .select-box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.row.selected .select-box svg {
+  visibility: visible;
+}
+.select-bar {
+  position: sticky;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  z-index: 5;
+}
+.select-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.select-head strong {
+  flex: 1;
+}
+.select-actions {
+  display: flex;
+  gap: 8px;
+}
+.select-actions .btn {
+  flex: 1;
+  min-width: 0;
+  padding: 0 6px;
+  gap: 6px;
+}
+@media (max-width: 420px) {
+  .select-actions svg {
+    display: none;
+  }
+}
+.select-actions svg {
+  width: 18px;
+  height: 18px;
+}
+.select-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+}
+.row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Ordre des pistes. */
+.order-list {
+  touch-action: pan-y;
+}
+.order-row {
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface);
+}
+.order-handle {
+  cursor: grab;
+  touch-action: none;
+  font-size: 20px;
+  color: var(--ink-3);
+  padding: 4px 6px;
+  user-select: none;
+}
+.order-num {
+  min-width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.order-row .icon-btn {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.order-row.dragging {
+  opacity: 1;
+  background: var(--accent-soft);
+}

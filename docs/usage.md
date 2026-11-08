@@ -40,10 +40,10 @@ Une boîte déjà utilisée (Wi-Fi, verrouillage ou cartes configurés) ne revoi
 
 Adresse: `http://totobox.local` (ou `http://<nom>.local` si la boîte a été renommée), depuis le Wi-Fi de la maison ou le point d'accès de la boîte.
 
-- **Accueil**: lecture en cours (avec sa progression dans la piste), volume, tuiles des cartes avec leur signet. Un appui sur une carte ouvre sa fiche: nom, apparence (un emoji et une couleur pour la reconnaître), contenu lu, signet. À partir de neuf cartes, un champ de recherche apparaît au-dessus des tuiles.
+- **Accueil**: lecture en cours (avec sa progression dans la piste), volume, tuiles des cartes avec leur signet. Un appui sur une carte ouvre sa fiche: nom, apparence (un emoji et une couleur pour la reconnaître), contenu lu, signet (pendant la lecture de cette carte, la position en cours: le signet est enregistré au retrait). À partir de neuf cartes, un champ de recherche apparaît au-dessus des tuiles.
 - **Nouvelle carte**: une carte inconnue posée affiche le bandeau « Nouvelle carte détectée » et un assistant en 3 étapes (carte, contenu, nom). La lecture démarre si la carte est encore posée.
 - **Contenu d'une carte**: un dossier entier (lu dans l'ordre alphabétique) ou un seul fichier, choisi dans un sélecteur avec recherche.
-- **Fichiers**: navigation par dossiers, envoi, téléchargement d'un fichier ou d'un dossier (menu « ⋯ » > Télécharger, voir [Télécharger un dossier](#télécharger-un-dossier)), renommage et déplacement (les cartes concernées suivent), corbeille restaurable. Sur ordinateur, glisser-déposer de fichiers et de dossiers (les sous-dossiers sont recréés, les fichiers non audio ignorés), et une ligne glissée sur un dossier y est déplacée. Les tags ID3 et pochettes des MP3 sont retirés à l'envoi. Voir [Volume des MP3](#volume-des-mp3) pour l'égalisation du volume. Un téléchargement s'arrête si une carte lance une histoire: l'histoire passe avant.
+- **Fichiers**: navigation par dossiers, envoi (une file affiche l'avancement de chaque fichier, « Annuler » arrête l'envoi en cours sans laisser de fichier incomplet), téléchargement d'un fichier ou d'un dossier (menu « ⋯ » > Télécharger, voir [Télécharger un dossier](#télécharger-un-dossier)), renommage et déplacement (les cartes concernées suivent), corbeille restaurable. « Sélectionner » coche plusieurs fichiers ou dossiers pour les déplacer, les télécharger ou les mettre à la corbeille d'un coup. « Ordre des pistes » (dossier d'au moins deux pistes) fixe l'ordre de lecture, voir [Ordre des pistes](#ordre-des-pistes). Sur ordinateur, glisser-déposer de fichiers et de dossiers (les sous-dossiers sont recréés, les fichiers non audio ignorés), et une ligne glissée sur un dossier y est déplacée. Les tags ID3 et pochettes des MP3 sont retirés à l'envoi. Voir [Volume des MP3](#volume-des-mp3) pour l'égalisation du volume. Un téléchargement s'arrête si une carte lance une histoire: l'histoire passe avant.
 - **Réglages** (roue dentée), en trois onglets, chacun enregistré seul: **Écoute** (limites de volume, verrouillage), **Réseau** (Wi-Fi de la maison avec « Oublier ce réseau », nom de la boîte, point d'accès de secours, Home Assistant), **Boîte** (mises à jour, informations, sauvegarde des cartes, remise à zéro). « Enregistrer » ne concerne que l'onglet affiché; les boutons du verrouillage, de la sauvegarde et de la remise à zéro, et les interrupteurs des mises à jour, agissent tout de suite.
 
 Pendant la lecture, la boîte refuse l'accès aux fichiers (pour ne pas faire sauter le son): la page l'indique.
@@ -88,6 +88,10 @@ Pour préparer des MP3 légers sans pochette depuis un ordinateur:
 ```bash
 ffmpeg -i entree.mp3 -map 0:a -c:a libmp3lame -b:a 128k -ar 44100 -map_metadata -1 -id3v2_version 0 -write_id3v1 0 -fflags +bitexact sortie.mp3
 ```
+
+### Ordre des pistes
+
+La boîte lit les pistes d'un dossier par ordre alphabétique de leur nom. Écran Fichiers, dans le dossier > « Ordre des pistes »: on range les pistes en les glissant par la poignée (⠿) ou avec les flèches, puis « Enregistrer ». La page renomme alors les fichiers avec un numéro devant (`01-`, `02-`…); si les noms ont déjà un numéro, elle garde le même style (`01_`, `1 - `, `001.`…) et remplace seulement le numéro. Les cartes associées à une piste suivent son nouveau nom, et le signet d'une carte associée au dossier reste sur la même piste.
 
 ### Télécharger un dossier
 
