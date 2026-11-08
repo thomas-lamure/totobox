@@ -1128,17 +1128,8 @@ void WebAdmin::sendJsonConfig() {
     item["label"] = card.label;
   }
 
-  JsonArray bindings = doc["bindings"].to<JsonArray>();
-  for (const CardBinding& binding : bindings_) {
-    JsonObject item = bindings.add<JsonObject>();
-    item["uid"] = binding.uid;
-    item["label"] = binding.label;
-    item["mediaPath"] = binding.mediaPath;
-    item["mode"] = playbackModeToString(binding.mode);
-    item["resumeTrackIndex"] = binding.resumeTrackIndex;
-    item["resumeMs"] = binding.resumeMs;
-    item["resumeByte"] = binding.resumeByte;
-  }
+  // Même écriture que la NVS et la sauvegarde sur carte SD: tout champ de CardBinding (emoji, couleur…) suit.
+  ConfigStore::writeBindings(doc["bindings"].to<JsonArray>(), bindings_);
 
   String payload;
   serializeJson(doc, payload);
