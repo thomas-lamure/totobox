@@ -4,6 +4,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.4.1 - 2026-11-08
+
 ### Firmware
 
 - La jauge du volume sur les LEDs s'efface 1 s après le dernier changement (5 s auparavant).
