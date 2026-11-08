@@ -127,6 +127,7 @@ struct RuntimeState {
   uint32_t activePositionMs = 0;
   uint32_t lastCardSeenMs = 0;
   uint32_t lastVolumeOverlayMs = 0;
+  uint32_t volumeOverlayDurationMs = 0;  // jauge du volume ou confirmation de déverrouillage
   bool volumeOverlayActive = false;
   // Volume modifié (molette ou web) et pas encore écrit en NVS: l'écriture attend que le volume soit stable.
   bool volumeSaveDue = false;

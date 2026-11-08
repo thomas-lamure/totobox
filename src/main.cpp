@@ -180,6 +180,7 @@ void handleCardPresented(const String& uid) {
       // Toute la bande en blanc quelques secondes pour confirmer sur la boîte.
       runtime.volumeOverlayActive = true;
       runtime.lastVolumeOverlayMs = millis();
+      runtime.volumeOverlayDurationMs = totobox::kUnlockOverlayMs;
       leds.showPercentOverlay(100);
       return;
     }
@@ -270,6 +271,7 @@ void handleVolume() {
 void showVolumeOverlay() {
   runtime.volumeOverlayActive = true;
   runtime.lastVolumeOverlayMs = millis();
+  runtime.volumeOverlayDurationMs = totobox::kVolumeOverlayMs;
   leds.showPercentOverlay(volume_rules::gaugePercent(config.currentVolume, config.volumeMin, config.volumeMax));
 }
 
@@ -444,7 +446,7 @@ void updateVolumeOverlay() {
     return;
   }
 
-  if (millis() - runtime.lastVolumeOverlayMs >= totobox::kVolumeOverlayMs) {
+  if (millis() - runtime.lastVolumeOverlayMs >= runtime.volumeOverlayDurationMs) {
     runtime.volumeOverlayActive = false;
   }
 }

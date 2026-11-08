@@ -4,6 +4,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+### Firmware
+
+- La jauge du volume sur les LEDs s'efface 1 s après le dernier changement (5 s auparavant). La confirmation d'une carte maîtresse reste affichée 5 s.
+
 ### Développement
 
 - Table des routes `/api` ([src/api_routes.cpp](src/api_routes.cpp)): refus quand la boîte est verrouillée, pendant une lecture ou un téléchargement, appliqués au même endroit pour toutes les routes au lieu d'être répétés en tête de chacune. Testée sur ordinateur (verrouillée, la boîte n'expose que la lecture en cours et le volume), et comparée à docs/api.md et au faux serveur par `make test-scripts`.
