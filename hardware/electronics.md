@@ -53,7 +53,12 @@ Seul périphérique à câbler: l'antenne NFC et le haut-parleur arrivent branch
 
 Carte vue de dessus, LEDs en bas et USB-C en haut: la barrette IO est au centre de la carte, de gauche à droite IO9, IO10, IO11, IO45, IO46, IO47, IO48; la barrette d'alimentation est juste à droite du régulateur, de bas en haut GND, +3V3, +5V.
 
-**Faire passer les fils de l'encodeur loin de l'antenne NFC** (le long de la paroi, fixés pour qu'ils n'y reviennent pas en refermant la boîte): posés sur l'antenne, ils captent son champ radio et la molette compte des dizaines de crans fantômes quand aucune carte n'est posée (voir [problèmes connus](../docs/problemes-connus.md#la-molette-monte-le-volume-au-maximum-quand-aucune-carte-nest-posée)). Fils courts, torsadés ensemble si possible.
+**Faire passer les fils de l'encodeur loin de l'antenne NFC, et les fixer**: posés sur l'antenne, ils captent son champ radio et la molette compte des dizaines de crans fantômes quand aucune carte n'est posée (voir [problèmes connus](../docs/problemes-connus.md#la-molette-monte-le-volume-au-maximum-quand-aucune-carte-nest-posée)).
+
+- Fils courts, torsadés ensemble si possible.
+- Du KY-040 à la carte, les faire longer la paroi droite puis le fond, du côté opposé à l'antenne (collée sur la cloison, derrière la fente à cartes).
+- Les plaquer avec un point de colle chaude (ou un serre-câble adhésif) sur la paroi droite, près de l'encodeur, et un second sur le fond avant la carte: libres, ils retombent n'importe où en refermant la boîte.
+- Boîte fermée, vérifier: sans carte posée, quelques crans de molette dans chaque sens doivent monter puis baisser le volume d'autant (la jauge LED suit).
 
 Le « + » va sur le **+3V3, jamais sur le +5V**: les résistances de rappel du module tirent CLK, DT et SW au « + », et les entrées de l'ESP32-S3 ne supportent pas le 5 V. Ne rien brancher sur IO47 (pont de remise à zéro d'atelier: relié à la masse au démarrage, il efface la configuration) ni sur IO45 / IO46 (broches de configuration du démarrage).
 

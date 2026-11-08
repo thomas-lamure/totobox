@@ -6,9 +6,9 @@ Symptômes déjà rencontrés sur une boîte, leur cause et quoi faire. Les piè
 
 ### La molette monte le volume au maximum quand aucune carte n'est posée
 
-- **Symptôme**: sans carte posée, tourner la molette dans un sens ou dans l'autre monte le volume jusqu'au maximum; avec une carte dans la fente, tout est normal. Dans la console, chaque geste compte des dizaines de crans (`[knob] +27 crans`), presque toujours positifs.
+- **Symptôme**: sans carte posée, tourner la molette dans un sens ou dans l'autre monte le volume jusqu'au maximum; avec une carte dans la fente, tout est normal. Chaque geste compte des dizaines de crans au lieu de deux ou trois, presque toujours dans le sens qui monte le son.
 - **Cause**: les fils de l'encodeur passent sur l'antenne NFC. Sans carte, le lecteur garde son champ radio allumé pendant toute la recherche (toutes les 100 ms), qui induit de faux fronts dans les fils CLK et DT pendant qu'ils changent d'état. Une carte posée répond tout de suite et le champ se coupe presque aussitôt.
-- **Remède**: faire passer les fils de l'encodeur loin de l'antenne, le long de la paroi, et les fixer pour qu'ils n'y reviennent pas en refermant la boîte (voir [hardware/electronics.md](../hardware/electronics.md#encodeur-ky-040-retenu)). Depuis 1.3.1, la boîte suspend aussi la recherche de carte pendant qu'on tourne la molette sans carte posée, ce qui masque le défaut sans le corriger.
+- **Remède**: faire passer les fils de l'encodeur loin de l'antenne, le long de la paroi droite puis du fond, et les fixer par deux points de colle chaude pour qu'ils n'y reviennent pas en refermant la boîte (voir [hardware/electronics.md](../hardware/electronics.md#encodeur-ky-040-retenu)). Depuis 1.3.1, la boîte suspend aussi la recherche de carte pendant qu'on tourne la molette sans carte posée, ce qui masque le défaut sans le corriger.
 
 ## Carte microSD
 
