@@ -132,6 +132,7 @@ void LedController::tick(const RuntimeState& runtime) {
       // Serial.print("?");
       showFaded(CRGB::Red);
       break;
+    case DeviceState::TwoCards:
     case DeviceState::Error:
       // Serial.print("!");
       showErrorBlink();

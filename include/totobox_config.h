@@ -57,6 +57,10 @@ constexpr uint32_t kNfcResponseTimeoutMs = 300;
 // Pause à respecter avant la commande suivante (loop() espace déjà ses recherches de kNfcPollIntervalMs).
 constexpr uint32_t kNfcSettleMs = 15;
 constexpr uint32_t kTagRemovalGraceMs = 250;
+// Sans carte posée, le champ radio du PN532 reste allumé pendant toute la recherche et induit des crans fantômes
+// dans les fils de l'encodeur (des dizaines par geste, toujours dans le même sens). La recherche est donc
+// suspendue pendant qu'on tourne la molette, jusqu'à ce délai après le dernier cran (card_flow::shouldSearch).
+constexpr uint32_t kNfcPauseAfterKnobMs = 400;
 // Veille profonde après cette durée sans interaction ni lecture (0 = jamais). Réveil: carte NFC ou encodeur.
 // Carte SD absente: nouvel essai à cet intervalle (insertion à chaud, assistant de première connexion).
 constexpr uint32_t kSdRetryMs = 2000;

@@ -53,6 +53,8 @@ Seul périphérique à câbler: l'antenne NFC et le haut-parleur arrivent branch
 
 Carte vue de dessus, LEDs en bas et USB-C en haut: la barrette IO est au centre de la carte, de gauche à droite IO9, IO10, IO11, IO45, IO46, IO47, IO48; la barrette d'alimentation est juste à droite du régulateur, de bas en haut GND, +3V3, +5V.
 
+**Faire passer les fils de l'encodeur loin de l'antenne NFC** (le long de la paroi, fixés pour qu'ils n'y reviennent pas en refermant la boîte): posés sur l'antenne, ils captent son champ radio et la molette compte des dizaines de crans fantômes quand aucune carte n'est posée (voir [problèmes connus](../docs/problemes-connus.md#la-molette-monte-le-volume-au-maximum-quand-aucune-carte-nest-posée)). Fils courts, torsadés ensemble si possible.
+
 Le « + » va sur le **+3V3, jamais sur le +5V**: les résistances de rappel du module tirent CLK, DT et SW au « + », et les entrées de l'ESP32-S3 ne supportent pas le 5 V. Ne rien brancher sur IO47 (pont de remise à zéro d'atelier: relié à la masse au démarrage, il efface la configuration) ni sur IO45 / IO46 (broches de configuration du démarrage).
 
 ### Remise à zéro d'atelier

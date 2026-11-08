@@ -76,13 +76,121 @@ void test_no_card_without_active_card_does_nothing() {
   TEST_ASSERT_FALSE(noCard(10000).stopCurrent);
 }
 
-void test_quick_swap_stops_the_previous_card_first() {
-  seen("04A1B2C3", 1000);
-  onCardPresented(runtime, config, bindings, "04A1B2C3");
-  // Autre carte posée avant la confirmation du retrait de la première.
-  const NfcStep step = seen("04D4E5F6", 1150);
+// Le lecteur rend l'une puis l'autre de deux cartes posées ensemble, comme pollNfc() avec main.cpp.
+void startPlaying(const char* uid, uint32_t now) {
+  seen(uid, now);
+  onCardPresented(runtime, config, bindings, uid);
+  runtime.state = DeviceState::Playing;
+}
+
+// Ce que pollNfc() fait d'une étape: retrait (signet de `stoppedAt`) puis carte posée.
+void apply(const NfcStep& step, const char* uid) {
+  if (step.stopCurrent) {
+    onCardRemoved(runtime, findBinding(bindings, runtime.activeCardUid), nullptr);
+  }
+  if (step.present) {
+    if (onCardPresented(runtime, config, bindings, uid) == Presented::Play) {
+      runtime.state = DeviceState::Playing;
+    }
+  }
+}
+
+void test_second_card_stops_playback_and_shows_two_cards() {
+  startPlaying("04A1B2C3", 1000);
+  // Autre carte alors que la première répond encore.
+  NfcStep step = seen("04D4E5F6", 1100);
   TEST_ASSERT_TRUE(step.stopCurrent);
+  TEST_ASSERT_FALSE(step.present);
+  TEST_ASSERT_TRUE(runtime.twoCards);
+  const Bookmark stoppedAt = bookmark(1, 83000, 1327000);
+  TEST_ASSERT_TRUE(onCardRemoved(runtime, findBinding(bindings, "04A1B2C3"), &stoppedAt));
+  TEST_ASSERT_EQUAL_UINT32(1327000, bindings[0].resumeByte);
+  TEST_ASSERT_TRUE(runtime.state == DeviceState::TwoCards);
+}
+
+void test_cards_alternating_with_empty_searches_never_play() {
+  // Comme sur la boîte: une carte, puis ~250 ms sans carte (retrait confirmé), puis l'autre, toutes les ~280 ms.
+  startPlaying("04A1B2C3", 1000);
+  uint32_t plays = 0;
+  uint32_t stops = 0;
+  const char* uids[] = {"04A1B2C3", "04D4E5F6"};
+  for (uint32_t cycle = 0; cycle < 20; ++cycle) {
+    const uint32_t base = 1000 + cycle * 280;
+    for (uint32_t now = base + 100; now < base + 280; now += 100) {
+      const NfcStep empty = noCard(now);
+      stops += empty.stopCurrent ? 1 : 0;
+      apply(empty, "");
+    }
+    const char* uid = uids[(cycle + 1) % 2];
+    const NfcStep step = seen(uid, base + 280);
+    plays += step.present ? 1 : 0;
+    stops += step.stopCurrent ? 1 : 0;
+    apply(step, uid);
+  }
+  TEST_ASSERT_EQUAL_UINT32(0, plays);  // aucune histoire relancée
+  TEST_ASSERT_TRUE(stops <= 1);        // la première arrêtée une seule fois
+  TEST_ASSERT_TRUE(runtime.twoCards);
+  TEST_ASSERT_TRUE(runtime.state == DeviceState::TwoCards);
+}
+
+void test_remaining_card_plays_once_alone_long_enough() {
+  startPlaying("04A1B2C3", 1000);
+  apply(seen("04D4E5F6", 1100), "04D4E5F6");
+  seen("04A1B2C3", 1400);
+  // La deuxième carte est retirée: seule la première répond.
+  uint32_t now = 1500;
+  for (; now < 1400 + kTwoCardsClearMs; now += 100) {
+    TEST_ASSERT_FALSE(seen("04A1B2C3", now).present);
+  }
+  const NfcStep step = seen("04A1B2C3", now);
   TEST_ASSERT_TRUE(step.present);
+  TEST_ASSERT_FALSE(step.stopCurrent);
+  TEST_ASSERT_FALSE(runtime.twoCards);
+  TEST_ASSERT_TRUE(onCardPresented(runtime, config, bindings, "04A1B2C3") == Presented::Play);
+}
+
+void test_both_cards_removed_ends_the_two_cards_state() {
+  startPlaying("04A1B2C3", 1000);
+  apply(seen("04D4E5F6", 1100), "04D4E5F6");
+  TEST_ASSERT_FALSE(noCard(1100 + kTwoCardsWindowMs - 1).present);
+  TEST_ASSERT_TRUE(runtime.twoCards);
+  noCard(1100 + kTwoCardsWindowMs);
+  TEST_ASSERT_FALSE(runtime.twoCards);
+  TEST_ASSERT_TRUE(runtime.state == DeviceState::Ready);
+  // Une carte posée ensuite se lit normalement.
+  TEST_ASSERT_TRUE(seen("04D4E5F6", 5000).present);
+}
+
+void test_card_swapped_later_is_not_two_cards() {
+  startPlaying("04A1B2C3", 1000);
+  TEST_ASSERT_TRUE(noCard(1000 + kGraceMs).stopCurrent);
+  onCardRemoved(runtime, findBinding(bindings, "04A1B2C3"), nullptr);
+  // Autre carte posée plus d'une seconde après: lue tout de suite.
+  const NfcStep step = seen("04D4E5F6", 1000 + kTwoCardsWindowMs);
+  TEST_ASSERT_TRUE(step.present);
+  TEST_ASSERT_FALSE(runtime.twoCards);
+}
+
+void test_quick_swap_waits_before_playing_the_new_card() {
+  startPlaying("04A1B2C3", 1000);
+  apply(noCard(1000 + kGraceMs), "");
+  // Autre carte moins d'une seconde après: traitée comme deux cartes tant qu'elle n'est pas seule assez longtemps.
+  NfcStep step = seen("04D4E5F6", 1600);
+  TEST_ASSERT_FALSE(step.present);
+  TEST_ASSERT_FALSE(step.stopCurrent);  // plus rien ne jouait
+  TEST_ASSERT_TRUE(runtime.state == DeviceState::TwoCards);
+  uint32_t now = 1700;
+  for (; now < 1600 + kTwoCardsClearMs; now += 100) {
+    TEST_ASSERT_FALSE(seen("04D4E5F6", now).present);
+  }
+  TEST_ASSERT_TRUE(seen("04D4E5F6", now).present);
+}
+
+void test_same_card_put_back_resumes_at_once() {
+  startPlaying("04A1B2C3", 1000);
+  apply(noCard(1000 + kGraceMs), "");
+  TEST_ASSERT_TRUE(seen("04A1B2C3", 1500).present);
+  TEST_ASSERT_FALSE(runtime.twoCards);
 }
 
 void test_known_card_asks_for_playback() {
@@ -246,6 +354,21 @@ void test_remote_stop_without_playback_does_nothing() {
   TEST_ASSERT_EQUAL_UINT32(0, bindings[1].resumeByte);
 }
 
+void test_search_pauses_while_the_knob_turns_without_card() {
+  constexpr uint32_t kPause = 400;
+  // Molette jamais tournée: recherche normale.
+  TEST_ASSERT_TRUE(shouldSearch(runtime, 1000, 0, kPause));
+  // Sans carte: pas de recherche pendant qu'on tourne, reprise après la pause.
+  TEST_ASSERT_FALSE(shouldSearch(runtime, 5000, 4900, kPause));
+  TEST_ASSERT_TRUE(shouldSearch(runtime, 5300, 4900, kPause));
+  // Carte posée (ou deux): toujours suivie, son retrait doit arrêter l'histoire.
+  onCardPresented(runtime, config, bindings, "04A1B2C3");
+  TEST_ASSERT_TRUE(shouldSearch(runtime, 5000, 4900, kPause));
+  onCardRemoved(runtime, nullptr, nullptr);
+  runtime.twoCards = true;
+  TEST_ASSERT_TRUE(shouldSearch(runtime, 5000, 4900, kPause));
+}
+
 void test_uid_is_formatted_in_uppercase_hex() {
   const uint8_t uid[] = {0x04, 0xA1, 0x0B, 0xFF};
   TEST_ASSERT_EQUAL_STRING("04A10BFF", formatUid(uid, sizeof(uid)).c_str());
@@ -257,7 +380,13 @@ int main() {
   RUN_TEST(test_new_card_is_presented_once);
   RUN_TEST(test_removal_is_confirmed_after_the_grace_delay);
   RUN_TEST(test_no_card_without_active_card_does_nothing);
-  RUN_TEST(test_quick_swap_stops_the_previous_card_first);
+  RUN_TEST(test_second_card_stops_playback_and_shows_two_cards);
+  RUN_TEST(test_cards_alternating_with_empty_searches_never_play);
+  RUN_TEST(test_remaining_card_plays_once_alone_long_enough);
+  RUN_TEST(test_both_cards_removed_ends_the_two_cards_state);
+  RUN_TEST(test_card_swapped_later_is_not_two_cards);
+  RUN_TEST(test_quick_swap_waits_before_playing_the_new_card);
+  RUN_TEST(test_same_card_put_back_resumes_at_once);
   RUN_TEST(test_known_card_asks_for_playback);
   RUN_TEST(test_unknown_card_is_remembered_for_the_page);
   RUN_TEST(test_master_card_unlocks_without_playing);
@@ -272,6 +401,7 @@ int main() {
   RUN_TEST(test_remote_stop_keeps_the_bookmark_and_does_not_restart);
   RUN_TEST(test_remote_stop_cancels_the_resume_after_the_sd_card);
   RUN_TEST(test_remote_stop_without_playback_does_nothing);
+  RUN_TEST(test_search_pauses_while_the_knob_turns_without_card);
   RUN_TEST(test_uid_is_formatted_in_uppercase_hex);
   return UNITY_END();
 }

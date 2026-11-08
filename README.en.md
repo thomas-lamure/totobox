@@ -50,6 +50,7 @@ This repository holds the firmware (ESP32-S3, HermitX CardReader board), the par
 | Topic | File |
 |---|---|
 | Using and configuring the box | [docs/usage.md](docs/usage.md) |
+| Known issues (French) | [docs/problemes-connus.md](docs/problemes-connus.md) |
 | Building the enclosure, wiring | [hardware/README.md](hardware/README.md), [hardware/electronics.md](hardware/electronics.md) |
 | Editing the 3D model | [hardware/onshape/README.md](hardware/onshape/README.md) |
 | Building, testing, contributing | [docs/development.md](docs/development.md), [CONTRIBUTING.md](CONTRIBUTING.md) |

@@ -163,7 +163,7 @@ std::vector<Message> discoveryMessages(const DeviceInfo& device) {
     root["value_template"] = "{{ value_json.state }}";
     root["device_class"] = "enum";
     JsonArray options = root["options"].to<JsonArray>();
-    for (const char* option : {"booting", "ready", "playing", "paused", "stopped", "unknown_card", "error"}) {
+    for (const char* option : {"booting", "ready", "playing", "paused", "stopped", "unknown_card", "two_cards", "error"}) {
       options.add(option);
     }
     root["icon"] = "mdi:play-box-outline";

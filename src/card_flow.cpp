@@ -25,16 +25,61 @@ void clearActiveCard(RuntimeState& runtime) {
 
 NfcStep onNfcEvent(RuntimeState& runtime, bool cardPresent, const String& uid, uint32_t now, uint32_t graceMs) {
   NfcStep step;
-  if (cardPresent) {
-    runtime.lastCardSeenMs = now;
-    if (uid != runtime.activeCardUid) {
-      step.stopCurrent = !runtime.activeCardUid.isEmpty();
-      step.present = true;
+  if (runtime.twoCards) {
+    if (cardPresent) {
+      runtime.lastCardSeenMs = now;
+      runtime.lastCardUid = uid;
+      // Alternance: l'autre carte répond encore, le décompte repart.
+      if (uid != runtime.twoCardsUid) {
+        runtime.twoCardsUid = uid;
+        runtime.twoCardsSingleSinceMs = now;
+      } else if (now - runtime.twoCardsSingleSinceMs >= kTwoCardsClearMs) {
+        // Une seule carte depuis assez longtemps: l'autre a été retirée.
+        runtime.twoCards = false;
+        step.present = true;
+      }
+    } else if (now - runtime.lastCardSeenMs >= kTwoCardsWindowMs) {
+      // Plus aucune carte (le lecteur laisse plus de `graceMs` entre deux cartes rendues en alternance).
+      runtime.twoCards = false;
+      runtime.state = restingState(runtime);
     }
+    return step;
+  }
+
+  if (cardPresent) {
+    // Avec deux cartes, le lecteur rend l'une, puis aucune pendant plus de `graceMs` (retrait confirmé), puis
+    // l'autre: une carte différente de la dernière vue, moins de kTwoCardsWindowMs après elle, signale deux cartes,
+    // que la première ait été déclarée retirée ou non.
+    const bool otherCardJustSeen = !runtime.lastCardUid.isEmpty() && uid != runtime.lastCardUid &&
+                                   now - runtime.lastCardSeenMs < kTwoCardsWindowMs;
+    runtime.lastCardSeenMs = now;
+    runtime.lastCardUid = uid;
+    if (uid == runtime.activeCardUid) {
+      return step;
+    }
+    if (otherCardJustSeen) {
+      // Rien ne joue (la lecture changerait d'histoire à chaque alternance); onCardRemoved affiche l'état
+      // « deux cartes » s'il y a une histoire à arrêter, sinon il est affiché ici.
+      runtime.twoCards = true;
+      runtime.state = DeviceState::TwoCards;
+      runtime.twoCardsUid = uid;
+      runtime.twoCardsSingleSinceMs = now;
+      step.stopCurrent = !runtime.activeCardUid.isEmpty();
+      return step;
+    }
+    step.stopCurrent = !runtime.activeCardUid.isEmpty();
+    step.present = true;
     return step;
   }
   step.stopCurrent = !runtime.activeCardUid.isEmpty() && now - runtime.lastCardSeenMs >= graceMs;
   return step;
+}
+
+bool shouldSearch(const RuntimeState& runtime, uint32_t now, uint32_t lastKnobTurnMs, uint32_t pauseMs) {
+  if (!runtime.activeCardUid.isEmpty() || runtime.twoCards || lastKnobTurnMs == 0) {
+    return true;
+  }
+  return now - lastKnobTurnMs >= pauseMs;
 }
 
 Presented onCardPresented(RuntimeState& runtime, const DeviceConfig& config,
@@ -61,7 +106,7 @@ bool onCardRemoved(RuntimeState& runtime, CardBinding* binding, const Bookmark* 
     storeBookmark(*binding, *stoppedAt);
   }
   clearActiveCard(runtime);
-  runtime.state = restingState(runtime);
+  runtime.state = runtime.twoCards ? DeviceState::TwoCards : restingState(runtime);
   return saved;
 }
 

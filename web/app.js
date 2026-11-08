@@ -13,6 +13,7 @@ const STATE_INFO = {
   playing: { label: "En lecture", tone: "tone-green" },
   paused: { label: "En pause", tone: "tone-amber" },
   unknown_card: { label: "Carte inconnue", tone: "tone-red" },
+  two_cards: { label: "Deux cartes posées", tone: "tone-red" },
   error: { label: "Erreur", tone: "tone-red" },
 };
 

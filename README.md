@@ -53,6 +53,7 @@ Le dépôt contient le firmware (ESP32-S3, carte HermitX CardReader), l'interfac
 | Pour… | Lire |
 |---|---|
 | utiliser et régler la boîte | [docs/usage.md](docs/usage.md) |
+| un symptôme déjà rencontré | [docs/problemes-connus.md](docs/problemes-connus.md) |
 | fabriquer le boîtier, câbler | [hardware/README.md](hardware/README.md), [hardware/electronics.md](hardware/electronics.md) |
 | modifier le modèle 3D | [hardware/onshape/README.md](hardware/onshape/README.md) |
 | compiler, tester, contribuer | [docs/development.md](docs/development.md), [CONTRIBUTING.md](CONTRIBUTING.md) |

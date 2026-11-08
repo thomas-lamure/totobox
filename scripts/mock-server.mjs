@@ -647,7 +647,8 @@ function mockPage() {
 <p>État: <b>${runtime.state}</b>, carte SD: <b>${runtime.sdState}</b>, carte posée: <b>${runtime.activeCardUid || "aucune"}</b>.
 <a href="/" target="totobox">Ouvrir la page de la boîte</a></p>
 <section><h2>Cartes NFC</h2>${cards} ${masters}
-<p><button data-card="new">Poser une carte inconnue</button> <button data-action="remove">Retirer la carte</button></p></section>
+<p><button data-card="new">Poser une carte inconnue</button> <button data-action="remove">Retirer la carte</button>
+<button data-action="two-cards">Poser une deuxième carte</button></p></section>
 <section><h2>Carte SD</h2><button data-sd="ready">Prête</button> <button data-sd="unreadable">Illisible (exFAT)</button> <button data-sd="absent">Absente</button></section>
 <section><h2>Home Assistant</h2><button data-action="ha-stop">Arrêter depuis Home Assistant</button>
 <button data-action="ha-volume-up">Volume +10 depuis Home Assistant</button></section>
@@ -666,6 +667,11 @@ document.addEventListener("click", async (event) => {
 function handleMock(body) {
   if (body.action === "place") placeCard(body.uid === "new" ? randomBytes(4).toString("hex").toUpperCase() : body.uid);
   else if (body.action === "remove") removeCard();
+  else if (body.action === "two-cards") {
+    // card_flow::onNfcEvent: lecture arrêtée (signet gardé), état « deux cartes » jusqu'au retrait.
+    removeCard();
+    runtime.state = "two_cards";
+  }
   else if (body.action === "sd") setSdState(body.state);
   else if (body.action === "reset-library") seedLibrary();
   else if (body.action === "ha-stop") remoteStop();

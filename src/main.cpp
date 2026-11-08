@@ -233,8 +233,12 @@ void goToSleep() {
   // Home Assistant voit l'appareil indisponible tout de suite (sinon après l'expiration de la connexion).
   homeAssistant.shutdown(kHaShutdownMs);
 #endif
-  power.sleep(nfc, runtime.activeCardUid);
+  // Deux cartes posées: l'une d'elles est confiée au PowerManager, sans quoi elles réveilleraient la boîte aussitôt.
+  power.sleep(nfc, runtime.twoCards ? runtime.twoCardsUid : runtime.activeCardUid);
 }
+
+// Dernier cran de molette (0 = aucun): la recherche de carte attend qu'on la lâche (card_flow::shouldSearch).
+uint32_t lastKnobTurnMs = 0;
 
 void handleVolume() {
   // Serial.print("-v");
@@ -247,6 +251,7 @@ void handleVolume() {
     return;
   }
   power.noteActivity(runtime);
+  lastKnobTurnMs = millis();
 
   config.currentVolume = volume_rules::afterDetents(config.currentVolume, delta, config.volumeMin, config.volumeMax,
                                                     totobox::kVolumeStepPercent);
@@ -447,8 +452,14 @@ void pollNfc() {
     return;
   }
   const String uid = event == NFCService::Event::CardPresent ? nfc.lastUid() : String();
+  const bool hadTwoCards = runtime.twoCards;
   const card_flow::NfcStep step = card_flow::onNfcEvent(runtime, event == NFCService::Event::CardPresent, uid, millis(),
                                                         totobox::kTagRemovalGraceMs);
+  if (runtime.twoCards && !hadTwoCards) {
+    logLine("main", "Deux cartes posées (%s et %s): lecture arrêtée", runtime.activeCardUid.c_str(), uid.c_str());
+  } else if (hadTwoCards && !runtime.twoCards) {
+    logLine("main", "Plus qu'une carte posée");
+  }
   if (step.stopCurrent) {
     handleCardRemoved();
   }
@@ -593,7 +604,9 @@ void loop() {
   saveVolumeIfIdle();
   updateVolumeOverlay();
   // Pendant une mise à jour, les cartes posées sont ignorées (pas de lecture pendant l'écriture de la flash).
-  if (!runtime.updating) {
+  // Ni pendant une mise à jour, ni (sans carte posée) pendant qu'on tourne la molette.
+  if (!runtime.updating &&
+      card_flow::shouldSearch(runtime, millis(), lastKnobTurnMs, totobox::kNfcPauseAfterKnobMs)) {
     pollNfc();
   }
 

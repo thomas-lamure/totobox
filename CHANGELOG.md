@@ -4,6 +4,15 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+### Firmware
+
+- Sans carte posée, la recherche de carte est suspendue pendant qu'on tourne la molette (reprise 400 ms après le dernier cran): le champ radio du lecteur NFC, capté par des fils d'encodeur trop proches de l'antenne, faisait monter le volume au maximum. Le remède reste d'éloigner les fils (voir docs/problemes-connus.md).
+- Deux cartes posées ensemble: la boîte arrête l'histoire (signet gardé) et clignote en rouge, la page affiche « Deux cartes posées ». Depuis 1.0.1, le lecteur rendant les deux cartes en alternance, la lecture changeait d'histoire à chaque recherche et le son hachait. L'histoire de la carte qui reste reprend environ 1,5 s après le retrait de l'autre.
+
+### Boîtier
+
+- Câblage: les fils de l'encodeur passent loin de l'antenne NFC ([hardware/electronics.md](hardware/electronics.md)). Nouvelle page [docs/problemes-connus.md](docs/problemes-connus.md): symptômes déjà rencontrés, cause et remède.
+
 ## 1.3.0 - 2026-11-04
 
 ### Firmware

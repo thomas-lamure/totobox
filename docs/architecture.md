@@ -59,8 +59,9 @@ flowchart LR
 | `Booting` | bleu atténué fixe |
 | `Ready` | chenillard bleu aller-retour |
 | `Playing` | chenillard vert, aller uniquement |
-| `Paused` | jaune atténué (bindings non locaux) |
+| `Paused` | jaune atténué (arrêt depuis Home Assistant, carte posée) |
 | `UnknownCard` | rouge atténué |
+| `TwoCards` | rouge clignotant (deux cartes sur le lecteur, voir `card_flow::onNfcEvent`) |
 | `Error` | rouge clignotant |
 | envoi de fichiers | la bande se remplit de cyan, en boucle |
 

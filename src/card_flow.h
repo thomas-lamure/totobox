@@ -20,14 +20,29 @@ struct Bookmark {
 
 // Ce qu'une réponse du lecteur NFC demande de faire, dans cet ordre.
 struct NfcStep {
-  bool stopCurrent = false;  // arrêter la carte active (retrait confirmé, ou remplacée par une autre)
+  bool stopCurrent = false;  // arrêter la carte active (retrait confirmé, ou deuxième carte posée)
   bool present = false;      // traiter la carte qui vient d'être posée
 };
 
+// Deux cartes posées: la lecture reprend quand une seule carte répond depuis ce délai (le lecteur rend les deux
+// cartes en alternance, pas forcément à chaque recherche).
+constexpr uint32_t kTwoCardsClearMs = 1500;
+// Une carte différente de la dernière vue, moins de ce délai après elle: deux cartes sur le lecteur (ou un échange
+// très rapide, qui attend alors kTwoCardsClearMs avant de lancer la nouvelle carte). L'état « deux cartes » prend
+// fin après ce délai sans aucune carte.
+constexpr uint32_t kTwoCardsWindowMs = 1000;
+
 // `cardPresent`: le lecteur voit la carte `uid`. Le retrait n'est confirmé qu'après `graceMs` sans carte (une
-// recherche peut manquer une carte posée). Une autre carte posée avant la fin de ce délai remplace l'active:
-// elle est d'abord arrêtée, signet compris.
+// recherche peut manquer une carte posée). Une autre carte vue moins de kTwoCardsWindowMs après la dernière signifie
+// deux cartes sur le lecteur (il les rend en alternance, séparées de recherches sans carte): l'active est arrêtée,
+// signet compris, et l'état « deux cartes » (DeviceState::TwoCards) dure jusqu'à ce qu'une seule carte réponde
+// pendant kTwoCardsClearMs (elle est alors traitée comme posée) ou qu'aucune ne réponde pendant kTwoCardsWindowMs.
 NfcStep onNfcEvent(RuntimeState& runtime, bool cardPresent, const String& uid, uint32_t now, uint32_t graceMs);
+
+// Recherche de carte à lancer maintenant? Sans carte posée, elle attend `pauseMs` après le dernier cran de molette
+// (`lastKnobTurnMs`, 0 = jamais): le champ radio du lecteur perturbe l'encodeur. Une carte posée (ou deux) est
+// toujours suivie: son retrait doit arrêter la lecture tout de suite.
+bool shouldSearch(const RuntimeState& runtime, uint32_t now, uint32_t lastKnobTurnMs, uint32_t pauseMs);
 
 enum class Presented : uint8_t {
   Unlock,   // carte maîtresse: réglages déverrouillés, rien n'est lu

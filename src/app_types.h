@@ -17,6 +17,8 @@ enum class DeviceState {
   Playing,
   Paused,
   UnknownCard,
+  // Deux cartes posées ensemble: le lecteur rend l'une puis l'autre; rien ne joue tant qu'il en reste deux.
+  TwoCards,
   Error
 };
 
@@ -148,6 +150,13 @@ struct RuntimeState {
   // Lecture arrêtée à distance (Home Assistant) alors que la carte reste posée: pas de reprise avant que la carte
   // soit retirée puis reposée. État DeviceState::Paused, publié "stopped".
   bool stoppedRemotely = false;
+  // Deux cartes sur le lecteur (card_flow::onNfcEvent): dernière carte vue, et depuis quand elle est seule à
+  // répondre (la lecture reprend avec elle quand l'autre est retirée).
+  bool twoCards = false;
+  // Dernière carte vue par le lecteur, même retirée depuis (détection de deux cartes en alternance).
+  String lastCardUid;
+  String twoCardsUid;
+  uint32_t twoCardsSingleSinceMs = 0;
   // Réglages Home Assistant modifiés depuis l'interface: le service MQTT se reconnecte avec les nouveaux.
   bool haConfigChanged = false;
   // Liaison Home Assistant, affichée par la page: "off", "connecting", "connected" ou "error" (avec haError:
@@ -185,6 +194,8 @@ inline const char* deviceStateToString(DeviceState state) {
       return "paused";
     case DeviceState::UnknownCard:
       return "unknown_card";
+    case DeviceState::TwoCards:
+      return "two_cards";
     case DeviceState::Error:
       return "error";
   }
