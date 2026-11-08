@@ -9,13 +9,15 @@ namespace {
 
 const std::vector<String> kHosts = {"totobox.local", "10.0.0.236", "192.168.4.1"};
 
-request_guard::Request post(const char* host, const char* origin = "", const char* contentType = "application/json") {
+request_guard::Request post(const char* host, const char* origin = "", const char* contentType = "application/json",
+                            const char* path = "/api/config") {
   request_guard::Request request;
+  request.mutating = true;
+  request.path = path;
   request.host = host;
   request.origin = origin;
   request.contentType = contentType;
-  request.mutating = true;
-  request.hasBody = true;
+  request.contentLength = 42;
   return request;
 }
 
@@ -54,25 +56,44 @@ void test_simple_requests_without_json_are_refused() {
                            request_guard::check(post("totobox.local", "", "application/x-www-form-urlencoded"), kHosts));
   TEST_ASSERT_NULL(request_guard::check(post("totobox.local", "", "application/json; charset=utf-8"), kHosts));
   // POST sans corps (verrouiller, restaurer...): seule l'origine compte.
-  request_guard::Request empty = post("totobox.local", "http://totobox.local", "");
-  empty.hasBody = false;
+  request_guard::Request empty = post("totobox.local", "http://totobox.local", "", "/api/lock");
+  empty.contentLength = 0;
   TEST_ASSERT_NULL(request_guard::check(empty, kHosts));
 }
 
+void test_body_expected_by_each_route() {
+  using request_guard::Body;
+  using request_guard::expectedBody;
+  TEST_ASSERT_TRUE(expectedBody(false, "/api/status") == Body::None);
+  TEST_ASSERT_TRUE(expectedBody(false, "/api/download") == Body::None);
+  TEST_ASSERT_TRUE(expectedBody(true, "/api/config") == Body::Json);
+  TEST_ASSERT_TRUE(expectedBody(true, "/api/upload") == Body::Multipart);
+  // Nom voisin: pas la route d'envoi.
+  TEST_ASSERT_TRUE(expectedBody(true, "/api/uploads") == Body::Json);
+  TEST_ASSERT_TRUE(expectedBody(true, "/api/upload/x") == Body::Json);
+}
+
 void test_file_upload_checks_origin_not_json() {
-  // POST /api/upload: corps multipart, contrôlé sans exiger de JSON (hasBody = false), mais l'origine compte.
-  request_guard::Request upload = post("totobox.local", "http://totobox.local", "multipart/form-data; boundary=x");
-  upload.hasBody = false;
+  // POST /api/upload: corps multipart, accepté sans JSON, mais seulement depuis la page de la boîte.
+  request_guard::Request upload =
+      post("totobox.local", "http://totobox.local", "multipart/form-data; boundary=x", "/api/upload");
   TEST_ASSERT_NULL(request_guard::check(upload, kHosts));
   upload.origin = "http://evil.example";
   TEST_ASSERT_EQUAL_STRING("forbidden_origin", request_guard::check(upload, kHosts));
   upload.origin = "";
   upload.secFetchSite = "cross-site";
   TEST_ASSERT_EQUAL_STRING("forbidden_origin", request_guard::check(upload, kHosts));
-  // Contrôlé comme une route JSON, le même envoi serait refusé: c'était l'erreur 415 en fin d'envoi.
+  // Le même corps vers une autre route est refusé.
   upload.secFetchSite = "same-origin";
-  upload.hasBody = true;
+  upload.path = "/api/folder";
   TEST_ASSERT_EQUAL_STRING("json_required", request_guard::check(upload, kHosts));
+}
+
+void test_reads_ignore_the_body() {
+  // GET avec un corps (rare, mais permis par HTTP): rien à vérifier au-delà de l'hôte.
+  request_guard::Request get = post("totobox.local", "http://evil.example", "text/plain", "/api/status");
+  get.mutating = false;
+  TEST_ASSERT_NULL(request_guard::check(get, kHosts));
 }
 
 void test_dns_rebinding_is_refused() {
@@ -96,7 +117,9 @@ int main() {
   RUN_TEST(test_page_of_the_box_is_accepted);
   RUN_TEST(test_other_site_is_refused);
   RUN_TEST(test_simple_requests_without_json_are_refused);
+  RUN_TEST(test_body_expected_by_each_route);
   RUN_TEST(test_file_upload_checks_origin_not_json);
+  RUN_TEST(test_reads_ignore_the_body);
   RUN_TEST(test_dns_rebinding_is_refused);
   RUN_TEST(test_scripts_without_browser_headers_are_accepted);
   return UNITY_END();

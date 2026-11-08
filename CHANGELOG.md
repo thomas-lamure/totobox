@@ -4,6 +4,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+### Développement
+
+- Protection des routes: le corps attendu (aucun, JSON, ou multipart pour l'envoi de fichiers) est décidé par `request_guard::expectedBody()` d'après la méthode et le chemin, et testé route par route; les routes ne choisissent plus elles-mêmes le contrôle (cause de l'erreur 415 corrigée en 1.4.0).
+
 ## 1.4.0 - 2026-11-08
 
 ### Firmware

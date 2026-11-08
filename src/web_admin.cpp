@@ -207,8 +207,8 @@ void WebAdmin::registerRoutes() {
   server_.on(
       "/api/upload", HTTP_POST,
       [this]() {
-        // Envoi multipart: l'origine est contrôlée, pas le JSON.
-        if (rejectIfForeign(true, false)) {
+        // Envoi multipart: request_guard contrôle l'origine, pas le JSON (expectedBody).
+        if (rejectIfForeign()) {
           return;
         }
         noteActivity();
@@ -239,8 +239,8 @@ void WebAdmin::registerRoutes() {
 }
 
 void WebAdmin::onApi(const char* path, HTTPMethod method, std::function<void()> handler) {
-  server_.on(path, method, [this, method, handler]() {
-    if (rejectIfForeign(method != HTTP_GET)) {
+  server_.on(path, method, [this, handler]() {
+    if (rejectIfForeign()) {
       return;
     }
     handler();
@@ -261,14 +261,15 @@ std::vector<String> WebAdmin::allowedHosts() const {
   return hosts;
 }
 
-const char* WebAdmin::foreignRequestError(bool mutating, bool jsonBody) {
+const char* WebAdmin::foreignRequestError() {
   request_guard::Request request;
+  request.mutating = server_.method() != HTTP_GET;
+  request.path = server_.uri();
   request.host = server_.hostHeader();
   request.origin = server_.header("Origin");
   request.secFetchSite = server_.header("Sec-Fetch-Site");
   request.contentType = server_.header("Content-Type");
-  request.mutating = mutating;
-  request.hasBody = jsonBody && server_.header("Content-Length").toInt() > 0;
+  request.contentLength = static_cast<uint32_t>(std::max(0L, server_.header("Content-Length").toInt()));
   return request_guard::check(request, allowedHosts());
 }
 
@@ -283,8 +284,8 @@ bool WebAdmin::rejectIfSealedInvalid(JsonDocument& request) {
   return true;
 }
 
-bool WebAdmin::rejectIfForeign(bool mutating, bool jsonBody) {
-  const char* error = foreignRequestError(mutating, jsonBody);
+bool WebAdmin::rejectIfForeign() {
+  const char* error = foreignRequestError();
   if (error == nullptr) {
     return false;
   }
@@ -1260,7 +1261,7 @@ void WebAdmin::handleUploadData() {
     }
 
     // Avant toute écriture: la réponse finale (403) part après la réception de tout l'envoi.
-    if (const char* error = foreignRequestError(true, false)) {
+    if (const char* error = foreignRequestError()) {
       uploadError_ = error;
       return;
     }

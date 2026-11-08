@@ -52,9 +52,8 @@ class WebAdmin {
   // Route /api protégée par request_guard (hôte, et pour une modification origine et corps JSON).
   void onApi(const char* path, HTTPMethod method, std::function<void()> handler);
   // Code d'erreur si la requête vient d'un autre site ou vise un autre nom que la boîte, sinon nullptr.
-  const char* foreignRequestError(bool mutating, bool jsonBody);
-  // jsonBody: le corps doit être du JSON (faux pour l'envoi de fichiers, en multipart).
-  bool rejectIfForeign(bool mutating, bool jsonBody = true);
+  const char* foreignRequestError();
+  bool rejectIfForeign();
   // Déchiffre les secrets envoyés par la page (secret_channel); répond 400/409 et renvoie true en cas d'échec.
   bool rejectIfSealedInvalid(JsonDocument& request);
   std::vector<String> allowedHosts() const;

@@ -41,6 +41,17 @@ String normalizeHost(const String& value) {
   return host;
 }
 
+Body expectedBody(bool mutating, const String& path) {
+  if (!mutating) {
+    return Body::None;
+  }
+  // Seule route multipart: le navigateur y envoie les fichiers d'un formulaire (FormData).
+  if (path == "/api/upload") {
+    return Body::Multipart;
+  }
+  return Body::Json;
+}
+
 const char* check(const Request& request, const std::vector<String>& allowedHosts) {
   // Requête adressée à un autre nom que la boîte: rebinding DNS.
   if (!isAllowed(normalizeHost(request.host), allowedHosts)) {
@@ -59,7 +70,9 @@ const char* check(const Request& request, const std::vector<String>& allowedHost
     return "forbidden_origin";
   }
   // Corps JSON obligatoire: text/plain ou formulaire partiraient sans demande d'autorisation du navigateur.
-  if (request.hasBody) {
+  // Un POST sans corps (verrouiller, vider la corbeille…) n'a rien à vérifier. L'envoi de fichiers (multipart)
+  // ne peut pas être du JSON: seule son origine, vérifiée plus haut, le protège.
+  if (expectedBody(request.mutating, request.path) == Body::Json && request.contentLength > 0) {
     String contentType = request.contentType;
     contentType.toLowerCase();
     if (!contentType.startsWith("application/json")) {

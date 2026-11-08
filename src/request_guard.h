@@ -17,13 +17,20 @@
 namespace request_guard {
 
 struct Request {
-  String host;          // en-tête Host, éventuellement avec ":port"
-  String origin;        // en-tête Origin, vide si absent
-  String secFetchSite;  // en-tête Sec-Fetch-Site, vide si absent
-  String contentType;   // en-tête Content-Type, vide si absent
-  bool mutating = false;  // route qui modifie quelque chose (POST)
-  bool hasBody = false;   // corps non vide à interpréter en JSON
+  bool mutating = false;      // route qui modifie quelque chose (tout sauf GET)
+  String path;                // chemin de la route, sans paramètres ("/api/config")
+  String host;                // en-tête Host, éventuellement avec ":port"
+  String origin;              // en-tête Origin, vide si absent
+  String secFetchSite;        // en-tête Sec-Fetch-Site, vide si absent
+  String contentType;         // en-tête Content-Type, vide si absent
+  uint32_t contentLength = 0; // en-tête Content-Length, 0 si absent
 };
+
+// Corps attendu par une route: aucun pour une lecture (GET), multipart pour l'envoi de fichiers, JSON pour toute
+// autre modification. Décidé ici et non par chaque route: une route ajoutée ne peut pas se tromper de contrôle
+// (un envoi de fichiers contrôlé comme du JSON répondait 415 après avoir écrit les fichiers).
+enum class Body : uint8_t { None, Json, Multipart };
+Body expectedBody(bool mutating, const String& path);
 
 // Renvoie nullptr si la requête est acceptée, sinon le code d'erreur à renvoyer:
 // "forbidden_host" (403), "forbidden_origin" (403) ou "json_required" (415).
