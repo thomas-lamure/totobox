@@ -43,7 +43,7 @@ Adresse: `http://totobox.local` (ou `http://<nom>.local` si la boîte a été re
 - **Accueil**: lecture en cours, volume, tuiles des cartes avec leur signet.
 - **Nouvelle carte**: une carte inconnue posée affiche le bandeau « Nouvelle carte détectée » et un assistant en 3 étapes (carte, contenu, nom). La lecture démarre si la carte est encore posée.
 - **Contenu d'une carte**: un dossier entier (lu dans l'ordre alphabétique) ou un seul fichier, choisi dans un sélecteur avec recherche.
-- **Fichiers**: navigation par dossiers, envoi, renommage et déplacement (les cartes concernées suivent), corbeille restaurable. Sur ordinateur, glisser-déposer de fichiers et de dossiers (les sous-dossiers sont recréés, les fichiers non audio ignorés), et une ligne glissée sur un dossier y est déplacée. Les tags ID3 et pochettes des MP3 sont retirés à l'envoi.
+- **Fichiers**: navigation par dossiers, envoi, téléchargement d'un fichier ou d'un dossier (menu « ⋯ » > Télécharger, voir [Télécharger un dossier](#télécharger-un-dossier)), renommage et déplacement (les cartes concernées suivent), corbeille restaurable. Sur ordinateur, glisser-déposer de fichiers et de dossiers (les sous-dossiers sont recréés, les fichiers non audio ignorés), et une ligne glissée sur un dossier y est déplacée. Les tags ID3 et pochettes des MP3 sont retirés à l'envoi. Voir [Volume des MP3](#volume-des-mp3) pour l'égalisation du volume. Un téléchargement s'arrête si une carte lance une histoire: l'histoire passe avant.
 - **Réglages**: limites de volume, Wi-Fi de la maison (avec « Oublier ce réseau »), point d'accès de secours, verrouillage, sauvegarde des cartes, remise à zéro.
 
 Pendant la lecture, la boîte refuse l'accès aux fichiers (pour ne pas faire sauter le son): la page l'indique.
@@ -88,6 +88,25 @@ Pour préparer des MP3 légers sans pochette depuis un ordinateur:
 ```bash
 ffmpeg -i entree.mp3 -map 0:a -c:a libmp3lame -b:a 128k -ar 44100 -map_metadata -1 -id3v2_version 0 -write_id3v1 0 -fflags +bitexact sortie.mp3
 ```
+
+### Télécharger un dossier
+
+Menu « ⋯ » d'un dossier > Télécharger: la boîte envoie le dossier et ses sous-dossiers en une archive ZIP (`comptines.zip`), à décompresser sur l'ordinateur ou le téléphone. Seuls les fichiers audio y sont, sans compression (les MP3 le sont déjà), 2000 fichiers et 4 Go au plus.
+
+Avec Chrome ou Edge sur ordinateur, le menu peut à la place proposer « Télécharger dans un dossier de l'ordinateur… »: on choisit un dossier, et la page y recopie les fichiers un par un en recréant l'arborescence de la carte (le dossier téléchargé et ses sous-dossiers, sur trois niveaux comme l'écran Fichiers). Ces navigateurs ne l'autorisent que sur une page sécurisée: pour la page de la boîte, ouvrir `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, y ajouter l'adresse de la boîte (`http://totobox.local`), activer, puis relancer le navigateur. Sans ce réglage, c'est l'archive ZIP.
+
+Une carte posée pendant un téléchargement lance l'histoire et interrompt le téléchargement.
+
+### Volume des MP3
+
+Case « Égaliser le volume des MP3 » (cochée par défaut, sous « Ajouter » et dans l'assistant de carte): avant l'envoi, la page mesure le niveau perçu de chaque MP3 (en LUFS, comme les plateformes de streaming) et corrige un fichier trop faible ou trop fort, pour que toutes les histoires sonnent pareil au même cran de molette. La correction se fait sans réencoder ni perdre de qualité (comme mp3gain): seul le gain inscrit dans chaque trame change, par pas de 1,5 dB.
+
+- Cible: −16 LUFS. Un fichier à moins de 1,5 dB de la cible n'est pas touché.
+- Montée de 12 dB au plus, limitée pour ne pas écrêter plus de 0,01 % des échantillons (inaudible).
+- Le message de fin d'envoi indique les corrections appliquées (« Volume égalisé pour 2 fichiers : +6 dB, +4,5 dB »).
+- L'analyse lit tout le fichier: environ 2 s pour 20 minutes d'histoire sur ordinateur, plus sur téléphone. Les autres formats (WAV, M4A…) partent tels quels.
+
+Le choix de la case est retenu par le navigateur. Pour des MP3 déjà sur la carte SD, les renvoyer depuis la page, ou les corriger sur ordinateur avec mp3gain (`mp3gain -r -d 2 *.mp3`: 89 + 2 = 91 dB, soit environ −16 LUFS).
 
 La carte peut être retirée à chaud: la lecture s'arrête en gardant le signet, et reprend à la réinsertion si la carte NFC est toujours posée.
 

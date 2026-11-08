@@ -59,6 +59,22 @@ void test_simple_requests_without_json_are_refused() {
   TEST_ASSERT_NULL(request_guard::check(empty, kHosts));
 }
 
+void test_file_upload_checks_origin_not_json() {
+  // POST /api/upload: corps multipart, contrôlé sans exiger de JSON (hasBody = false), mais l'origine compte.
+  request_guard::Request upload = post("totobox.local", "http://totobox.local", "multipart/form-data; boundary=x");
+  upload.hasBody = false;
+  TEST_ASSERT_NULL(request_guard::check(upload, kHosts));
+  upload.origin = "http://evil.example";
+  TEST_ASSERT_EQUAL_STRING("forbidden_origin", request_guard::check(upload, kHosts));
+  upload.origin = "";
+  upload.secFetchSite = "cross-site";
+  TEST_ASSERT_EQUAL_STRING("forbidden_origin", request_guard::check(upload, kHosts));
+  // Contrôlé comme une route JSON, le même envoi serait refusé: c'était l'erreur 415 en fin d'envoi.
+  upload.secFetchSite = "same-origin";
+  upload.hasBody = true;
+  TEST_ASSERT_EQUAL_STRING("json_required", request_guard::check(upload, kHosts));
+}
+
 void test_dns_rebinding_is_refused() {
   request_guard::Request get;
   get.host = "evil.example";
@@ -80,6 +96,7 @@ int main() {
   RUN_TEST(test_page_of_the_box_is_accepted);
   RUN_TEST(test_other_site_is_refused);
   RUN_TEST(test_simple_requests_without_json_are_refused);
+  RUN_TEST(test_file_upload_checks_origin_not_json);
   RUN_TEST(test_dns_rebinding_is_refused);
   RUN_TEST(test_scripts_without_browser_headers_are_accepted);
   return UNITY_END();

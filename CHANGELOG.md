@@ -9,6 +9,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 - Sans carte posée, la recherche de carte est suspendue pendant qu'on tourne la molette (reprise 400 ms après le dernier cran): le champ radio du lecteur NFC, capté par des fils d'encodeur trop proches de l'antenne, faisait monter le volume au maximum. Le remède reste d'éloigner les fils (voir docs/problemes-connus.md).
 - Deux cartes posées ensemble: la boîte arrête l'histoire (signet gardé) et clignote en rouge, la page affiche « Deux cartes posées ». Depuis 1.0.1, le lecteur rendant les deux cartes en alternance, la lecture changeait d'histoire à chaque recherche et le son hachait. L'histoire de la carte qui reste reprend environ 1,5 s après le retrait de l'autre.
 
+### Page web
+
+- Corbeille: chaque fichier ou dossier supprimé est listé avec son dossier d'origine, et se restaure seul. Elle n'affichait que le premier niveau: un fichier supprimé d'un sous-dossier apparaissait comme ce sous-dossier, et « Restaurer » le recréait en double (« music-1 »). La boîte retire de la corbeille les dossiers vidés par une restauration, et la page n'affiche plus un dossier sans fichier.
+- Envoi de fichiers: la boîte répondait « 415 json_required » à la fin de l'envoi (affiché comme une erreur) alors que les fichiers étaient bien enregistrés.
+- Téléchargement d'un fichier ou d'un dossier de la carte SD (menu « ⋯ » > Télécharger, route `GET /api/download`). Un dossier part en archive ZIP faite au fil de l'eau par la boîte, avec ses sous-dossiers; Chrome et Edge autorisés pour la page (`chrome://flags`) peuvent à la place le recopier dans un dossier choisi de l'ordinateur. La boîte envoie par morceaux et reste réactive; une carte posée lance l'histoire et interrompt le téléchargement.
+- Égalisation du volume des MP3 à l'envoi (case cochée par défaut): la page mesure le niveau perçu de chaque fichier (BS.1770) et corrige ceux qui s'écartent de plus de 1,5 dB de −16 LUFS, sans réencoder (gain des trames, par pas de 1,5 dB, montée limitée par l'écrêtage).
+
 ### Boîtier
 
 - Câblage: les fils de l'encodeur passent loin de l'antenne NFC ([hardware/electronics.md](hardware/electronics.md)). Nouvelle page [docs/problemes-connus.md](docs/problemes-connus.md): symptômes déjà rencontrés, cause et remède.

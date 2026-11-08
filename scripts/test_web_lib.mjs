@@ -12,7 +12,9 @@ import vm from "node:vm";
 const NAMES = [
   "LIBRARY_ROOT", "HOSTNAME_PATTERN", "esc", "baseName", "relPath", "prettyName", "fmtClock", "fmtDuration",
   "fmtBytes", "plural", "isAudioPath", "parentDir", "safeFolderName", "canMoveInto", "allFolders",
-  "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths", "compareVersions", "parseRelease", "plainNotes",
+  "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths", "originalPath", "trashItems", "folderDownloadPlan", "compareVersions", "parseRelease", "plainNotes",
+  "mp3FrameHeader", "firstMp3Frame", "applyMp3Gain", "mp3Crc", "readBits", "writeBits", "kWeighting", "measureLevels", "mergeLevels",
+  "gatedLoudness", "mp3GainSteps", "fmtGain",
 ];
 const source = readFileSync(new URL("../web/lib.js", import.meta.url), "utf8");
 const lib = vm.runInNewContext(`${source}\n;({ ${NAMES.join(", ")} })`, {});
@@ -176,4 +178,231 @@ test("Release sans mise à jour en ligne possible", () => {
 test("notes de version lisibles sans rendu Markdown", () => {
   assert.equal(lib.plainNotes("### Firmware\n\n- Carte `card_flow` **testée**.\n  - détail\n\n\n\n## Page"), "Firmware\n\n• Carte card_flow testée.\n  • détail\n\nPage");
   assert.equal(lib.plainNotes(undefined), "");
+});
+
+// ---------- Égalisation du volume des MP3 ----------
+
+// Trame MPEG1 couche III à 128 kbit/s, 44,1 kHz (417 octets), global_gain de chaque granule = `gains`.
+// Positions: 9 bits de main_data_begin, bits privés (5 en mono, 3 en stéréo), scfsi (4 par canal), puis
+// granules de 59 bits où global_gain suit 21 bits.
+function frame({ mono = false, crc = false, gains = null, tag = "" } = {}) {
+  const bytes = new Uint8Array(417);
+  bytes.set([0xff, crc ? 0xfa : 0xfb, 0x90, mono ? 0xc0 : 0x00]);
+  const side = 4 + (crc ? 2 : 0);
+  const channels = mono ? 1 : 2;
+  let pos = side * 8 + 9 + (mono ? 5 : 3) + 4 * channels;
+  const list = gains || new Array(2 * channels).fill(150);
+  for (const gain of list) {
+    lib.writeBits(bytes, pos + 21, 8, gain);
+    pos += 59;
+  }
+  if (tag) bytes.set([...tag].map((c) => c.charCodeAt(0)), side + (mono ? 17 : 32));
+  if (crc) {
+    const value = lib.mp3Crc(bytes, 0, mono ? 17 : 32);
+    bytes[4] = value >> 8;
+    bytes[5] = value & 0xff;
+  }
+  return bytes;
+}
+
+function gainsOf(bytes, offset, { mono = false, crc = false } = {}) {
+  const channels = mono ? 1 : 2;
+  let pos = (offset + 4 + (crc ? 2 : 0)) * 8 + 9 + (mono ? 5 : 3) + 4 * channels;
+  const out = [];
+  for (let g = 0; g < 2 * channels; g++, pos += 59) out.push(lib.readBits(bytes, pos + 21, 8));
+  return out;
+}
+
+function concat(...parts) {
+  const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+}
+
+test("en-tête de trame MP3", () => {
+  const header = lib.mp3FrameHeader(frame(), 0);
+  assert.equal(header.length, 417);
+  assert.equal(header.mpeg1, true);
+  assert.equal(header.mono, false);
+  assert.equal(header.sideLength, 32);
+  assert.equal(lib.mp3FrameHeader(new Uint8Array([0xff, 0xfd, 0x90, 0]), 0), null, "couche II refusée");
+  assert.equal(lib.mp3FrameHeader(new Uint8Array([0xff, 0xfb, 0xf0, 0]), 0), null, "débit invalide");
+  // MPEG2, 22,05 kHz, 32 kbit/s, mono: 72 × 32000 / 22050 = 104 octets.
+  const mpeg2 = lib.mp3FrameHeader(new Uint8Array([0xff, 0xf3, 0x40, 0xc0]), 0);
+  assert.equal(mpeg2.length, 104);
+  assert.equal(mpeg2.sideLength, 9);
+});
+
+test("une fausse synchronisation n'est pas prise pour une trame", () => {
+  const junk = new Uint8Array([1, 2, 0xff, 0xfb, 0x90, 0x00, 7, 8]);
+  const bytes = concat(junk, frame(), frame());
+  assert.equal(lib.firstMp3Frame(bytes), junk.length);
+  assert.equal(lib.firstMp3Frame(new Uint8Array(100)), -1);
+});
+
+test("le gain de chaque granule est décalé, sans changer la taille", () => {
+  const bytes = concat(frame({ gains: [150, 151, 152, 153] }), frame({ gains: [100, 101, 102, 103] }));
+  const before = bytes.length;
+  assert.deepEqual({ ...lib.applyMp3Gain(bytes, 3) }, { frames: 2, clamped: 0 });
+  assert.equal(bytes.length, before);
+  assert.deepEqual(gainsOf(bytes, 0), [153, 154, 155, 156]);
+  assert.deepEqual(gainsOf(bytes, 417), [103, 104, 105, 106]);
+  lib.applyMp3Gain(bytes, -3);
+  assert.deepEqual(gainsOf(bytes, 0), [150, 151, 152, 153]);
+});
+
+test("gain en mono et borné à 0..255", () => {
+  const bytes = concat(frame({ mono: true, gains: [254, 10] }), frame({ mono: true }));
+  assert.equal(lib.applyMp3Gain(bytes, 4).clamped, 1);
+  assert.deepEqual(gainsOf(bytes, 0, { mono: true }), [255, 14]);
+});
+
+test("tags ID3 et trame d'informations laissés intacts", () => {
+  const id3 = new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 4, 0xff, 0xfb, 0x90, 0x00]);
+  const info = frame({ tag: "Info" });
+  const tail = new Uint8Array(128);
+  tail.set([0x54, 0x41, 0x47]);
+  const bytes = concat(id3, info, frame(), tail);
+  const copy = bytes.slice();
+  assert.equal(lib.applyMp3Gain(bytes, 2).frames, 1);
+  assert.deepEqual(bytes.subarray(0, id3.length + 417), copy.subarray(0, id3.length + 417));
+  assert.deepEqual(gainsOf(bytes, id3.length + 417), [152, 152, 152, 152]);
+  assert.deepEqual(bytes.subarray(bytes.length - 128), tail);
+});
+
+test("le CRC des trames protégées est recalculé", () => {
+  // Valeur de référence: CRC-16 (0x8005, départ 0xFFFF) d'une trame produite par lame -p, vérifiée par
+  // ffmpeg -err_detect crccheck.
+  const bytes = concat(frame({ crc: true }), frame({ crc: true }));
+  lib.applyMp3Gain(bytes, 2);
+  assert.deepEqual(gainsOf(bytes, 0, { crc: true }), [152, 152, 152, 152]);
+  assert.equal((bytes[4] << 8) | bytes[5], lib.mp3Crc(bytes, 0, 32));
+  const reference = Uint8Array.from(
+    "fffa9264543c3d0df3b115430f7c400000000d20e000010d54550e2fec668000003480000004".match(/../g),
+    (hex) => parseInt(hex, 16),
+  );
+  assert.equal(lib.mp3Crc(reference, 0, 32), 0x543c);
+});
+
+function sine(amplitude, seconds, rate = 48000, freq = 997) {
+  const data = new Float32Array(seconds * rate);
+  for (let n = 0; n < data.length; n++) data[n] = amplitude * Math.sin((2 * Math.PI * freq * n) / rate);
+  return data;
+}
+
+test("niveau perçu conforme à BS.1770", () => {
+  // Coefficients de référence de la norme à 48 kHz.
+  const [shelf, highPass] = lib.kWeighting(48000);
+  [1.53512485958697, -2.69169618940638, 1.19839281085285, -1.69065929318241, 0.73248077421585].forEach((value, i) =>
+    assert.ok(Math.abs(shelf[i] - value) < 1e-9),
+  );
+  [1, -2, 1, -1.99004745483398, 0.99007225036621].forEach((value, i) => assert.ok(Math.abs(highPass[i] - value) < 1e-9));
+  // EBU Tech 3341: sinus de 1 kHz à −23 dBFS sur les deux canaux -> −23 LUFS.
+  const tone = sine(Math.pow(10, -23 / 20), 20, 48000, 1000);
+  assert.ok(Math.abs(lib.gatedLoudness(lib.measureLevels([tone, tone], 48000).blocks) + 23) < 0.1);
+  // Sinus de 997 Hz à 0 dBFS sur un seul canal: −3,01 LUFS, aussi à 44,1 kHz.
+  const full = sine(1, 10, 44100);
+  assert.ok(Math.abs(lib.gatedLoudness(lib.measureLevels([full], 44100).blocks) + 3.01) < 0.1);
+  // Les silences ne comptent pas.
+  const withSilence = new Float32Array(30 * 48000);
+  withSilence.set(tone);
+  assert.ok(Math.abs(lib.gatedLoudness(lib.measureLevels([withSilence, withSilence], 48000).blocks) + 23) < 0.1);
+  assert.equal(lib.gatedLoudness(lib.measureLevels([new Float32Array(48000)], 48000).blocks), -Infinity);
+});
+
+test("échantillons qui écrêteraient selon la montée", () => {
+  // Pic à 0,52 (−5,7 dBFS): dépasse 0 dBFS à partir de +6 dB (4 pas), pas à +4,5 dB.
+  const levels = lib.measureLevels([sine(0.52, 2, 44100)], 44100);
+  assert.equal(levels.samples, 88200);
+  assert.equal(levels.over[2], 0);
+  assert.ok(levels.over[3] > 0);
+  const merged = lib.mergeLevels([levels, levels]);
+  assert.equal(merged.samples, 2 * 88200);
+  assert.equal(merged.over[3], 2 * levels.over[3]);
+});
+
+test("choix du nombre de pas", () => {
+  const at = (lufs, over = []) => ({
+    blocks: new Array(50).fill(Math.pow(10, (lufs + 0.691) / 10)),
+    samples: 1e6,
+    over: [0, 0, 0, 0, 0, 0, 0, 0].map((zero, k) => over[k] || zero),
+  });
+  // Contes trop faibles: montés.
+  assert.equal(lib.mp3GainSteps(at(-22.2)).steps, 4);
+  assert.equal(lib.mp3GainSteps(at(-21.3)).steps, 4);
+  // … mais pas jusqu'à écrêter plus de 0,01 % des échantillons (Petit Poucet: 0,0247 % à +6 dB).
+  assert.equal(lib.mp3GainSteps(at(-21.3, [3, 40, 93, 247])).steps, 3);
+  assert.equal(lib.mp3GainSteps(at(-22.2, [9, 19, 50, 95])).steps, 4);
+  // À moins d'un pas de la cible (Popi, −15 LUFS): inchangé.
+  assert.equal(lib.mp3GainSteps(at(-15)).steps, 0);
+  assert.equal(lib.mp3GainSteps(at(-17.4)).steps, 0);
+  // Trop fort: baissé.
+  assert.equal(lib.mp3GainSteps(at(-13)).steps, -2);
+  // Montée bornée à 12 dB, silence laissé tel quel.
+  assert.equal(lib.mp3GainSteps(at(-40)).steps, 8);
+  assert.equal(lib.mp3GainSteps({ blocks: [], samples: 0, over: [] }).steps, 0);
+});
+
+test("gain affiché", () => {
+  assert.equal(lib.fmtGain(4), "+6 dB");
+  assert.equal(lib.fmtGain(3), "+4,5 dB");
+  assert.equal(lib.fmtGain(-2), "−3 dB");
+});
+
+test("corbeille: éléments supprimés, pas les dossiers de rangement", () => {
+  const library = [
+    { path: "/content/music", type: "directory", children: [{ path: "/content/music/comptines", type: "directory", children: [] }] },
+  ];
+  const trash = [
+    // /content/music/comptines/a.mp3 supprimé: rangé sous music/comptines, qui existent encore.
+    { path: "/content/.trash/music", type: "directory", children: [
+      { path: "/content/.trash/music/comptines", type: "directory", children: [
+        { path: "/content/.trash/music/comptines/a.mp3", type: "file" },
+      ] },
+      { path: "/content/.trash/music/b.mp3", type: "file" },
+    ] },
+    // Dossier supprimé en entier: listé tel quel, avec son contenu.
+    { path: "/content/.trash/contes", type: "directory", children: [{ path: "/content/.trash/contes/c.mp3", type: "file" }] },
+    { path: "/content/.trash/d.mp3", type: "file" },
+    // Dossiers vides (dernier fichier restauré par un ancien firmware): pas proposés.
+    { path: "/content/.trash/vide", type: "directory", children: [{ path: "/content/.trash/vide/sous", type: "directory", children: [] }] },
+  ];
+  assert.deepEqual([...lib.trashItems(trash, library).map((item) => item.path)], [
+    "/content/.trash/music/comptines/a.mp3",
+    "/content/.trash/music/b.mp3",
+    "/content/.trash/contes",
+    "/content/.trash/d.mp3",
+  ]);
+  assert.equal(lib.originalPath("/content/.trash/music/b.mp3"), "/content/music/b.mp3");
+  // Bibliothèque pas encore chargée: rien n'est pris pour un dossier de rangement.
+  assert.equal(lib.trashItems(trash, null).length, 3);
+});
+
+test("téléchargement d'un dossier: même arborescence que sur la carte", () => {
+  const library = [
+    { path: "/content/music", type: "directory", children: [
+      { path: "/content/music/comptines", type: "directory", children: [
+        { path: "/content/music/comptines/a.mp3", type: "file", totalSize: 10 },
+        { path: "/content/music/comptines/notes.txt", type: "file", totalSize: 1 },
+      ] },
+      { path: "/content/music/b.mp3", type: "file", totalSize: 20 },
+    ] },
+    { path: "/content/c.mp3", type: "file", totalSize: 30 },
+    { path: "/content/.trash", type: "directory", children: [{ path: "/content/.trash/x.mp3", type: "file" }] },
+  ];
+  const plan = (folder) => JSON.parse(JSON.stringify(lib.folderDownloadPlan(library, folder)));
+  assert.deepEqual(plan("/content/music"), [
+    { path: "/content/music/comptines/a.mp3", dirs: ["music", "comptines"], name: "a.mp3", size: 10 },
+    { path: "/content/music/b.mp3", dirs: ["music"], name: "b.mp3", size: 20 },
+  ]);
+  assert.deepEqual(plan("/content/music/comptines").map((item) => item.dirs.join("/")), ["comptines"]);
+  // Racine: dossier "totobox", corbeille exclue.
+  assert.deepEqual(plan("/content").map((item) => [...item.dirs, item.name].join("/")), [
+    "totobox/music/comptines/a.mp3", "totobox/music/b.mp3", "totobox/c.mp3",
+  ]);
+  assert.deepEqual(plan("/content/absent"), []);
 });

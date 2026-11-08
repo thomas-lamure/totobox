@@ -94,6 +94,65 @@ function allFolders(entries, out = []) {
   return out;
 }
 
+// Fichiers d'un dossier de la bibliothèque à recopier sur l'ordinateur: chemin sur la carte, dossiers à créer
+// (en commençant par celui du dossier téléchargé, "totobox" pour la racine) et nom. Même arborescence que
+// l'archive ZIP de la boîte (zip_stream::entryName).
+function folderDownloadPlan(entries, folderPath) {
+  const find = (list) => {
+    for (const entry of list || []) {
+      if (entry.path === folderPath) return entry;
+      if (entry.type === "directory" && folderPath.startsWith(entry.path + "/")) return find(entry.children);
+    }
+    return null;
+  };
+  const root = folderPath === LIBRARY_ROOT ? { children: entries } : find(entries);
+  const label = folderPath === LIBRARY_ROOT ? "totobox" : baseName(folderPath);
+  const plan = [];
+  const walk = (list) => {
+    for (const entry of list || []) {
+      if (entry.type === "directory") {
+        if (!isInTrashPath(entry.path)) walk(entry.children);
+      } else if (isAudioPath(entry.path)) {
+        const parts = [label, ...entry.path.slice(folderPath.length + 1).split("/")];
+        plan.push({ path: entry.path, dirs: parts.slice(0, -1), name: parts.at(-1), size: entry.totalSize || 0 });
+      }
+    }
+  };
+  if (root) walk(root.children);
+  return plan;
+}
+
+function isInTrashPath(path) {
+  return path === TRASH_ROOT || path.startsWith(TRASH_ROOT + "/");
+}
+
+// Emplacement d'origine d'un élément de la corbeille (même arborescence sous /content/.trash).
+function originalPath(trashPath) {
+  return LIBRARY_ROOT + trashPath.slice(TRASH_ROOT.length);
+}
+
+// Éléments supprimés, à lister et restaurer un par un. La corbeille reprend l'arborescence de la bibliothèque:
+// un dossier de la corbeille dont l'original existe encore n'est là que pour ranger ce qui y a été supprimé
+// (on liste son contenu); sinon, c'est un dossier supprimé avec tout ce qu'il contenait.
+function trashItems(trashEntries, libraryEntries) {
+  const folders = new Set(allFolders(libraryEntries));
+  const items = [];
+  const hasFile = (entry) => entry.type !== "directory" || (entry.children || []).some(hasFile);
+  const walk = (entries) => {
+    for (const entry of entries || []) {
+      // Dossier sans aucun fichier (reste d'une ancienne restauration): rien à restaurer, vidé avec la corbeille.
+      if (!hasFile(entry)) continue;
+      if (entry.type === "directory" && folders.has(originalPath(entry.path))) {
+        walk(entry.children);
+      } else {
+        items.push(entry);
+      }
+    }
+  };
+  walk(trashEntries);
+  return items;
+}
+
 function normalizeHostname(value) {
   return value.trim().toLowerCase();
 }
@@ -217,4 +276,257 @@ function plainNotes(markdown) {
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+// ---------- Égalisation du volume des MP3 ----------
+// Comme mp3gain: le champ global_gain de chaque granule (8 bits, pas de 1,5 dB) est décalé, sans réencoder ni
+// perdre de qualité. La page mesure le niveau perçu (BS.1770, en LUFS) sur des extraits décodés par le
+// navigateur, puis choisit le nombre de pas.
+
+const MP3_GAIN_STEP_DB = 1.5;
+const MP3_TARGET_LUFS = -16;
+// Fichier laissé tel quel à moins d'un pas de la cible.
+const MP3_TOLERANCE_DB = 1.5;
+// Montée limitée pour ne pas écrêter plus de 0,01 % des échantillons (inaudible sur la boîte).
+const MP3_MAX_CLIP_RATIO = 1e-4;
+// 12 dB au plus: au-delà, c'est surtout le souffle d'un enregistrement très faible qui monterait.
+const MP3_MAX_STEPS = 8;
+
+const MP3_BITRATES = [
+  [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320], // MPEG1 couche III
+  [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160], // MPEG2 et 2.5 couche III
+];
+const MP3_RATES = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] };
+
+// En-tête de trame MP3 (couche III) à l'octet i, ou null.
+function mp3FrameHeader(bytes, i) {
+  if (i + 4 > bytes.length || bytes[i] !== 0xff || (bytes[i + 1] & 0xe0) !== 0xe0) return null;
+  const version = (bytes[i + 1] >> 3) & 3; // 3 MPEG1, 2 MPEG2, 0 MPEG2.5
+  const layer = (bytes[i + 1] >> 1) & 3; // 1 = couche III
+  const bitrateIndex = bytes[i + 2] >> 4;
+  const rateIndex = (bytes[i + 2] >> 2) & 3;
+  if (version === 1 || layer !== 1 || bitrateIndex === 0 || bitrateIndex === 15 || rateIndex === 3) return null;
+  const mpeg1 = version === 3;
+  const bitrate = MP3_BITRATES[mpeg1 ? 0 : 1][bitrateIndex] * 1000;
+  const rate = MP3_RATES[version][rateIndex];
+  const padding = (bytes[i + 2] >> 1) & 1;
+  const mono = bytes[i + 3] >> 6 === 3;
+  return {
+    mpeg1,
+    version,
+    rate,
+    mono,
+    crc: !(bytes[i + 1] & 1),
+    length: Math.floor(((mpeg1 ? 144 : 72) * bitrate) / rate) + padding,
+    sideLength: mpeg1 ? (mono ? 17 : 32) : mono ? 9 : 17,
+  };
+}
+
+// Une trame n'est retenue que si la suivante commence juste après (ou si c'est la dernière): une suite
+// d'octets 0xFFE… au milieu d'une pochette ou d'un tag n'est pas prise pour une trame.
+function mp3FrameAt(bytes, i, end) {
+  const header = mp3FrameHeader(bytes, i);
+  if (!header || i + header.length > end) return null;
+  const next = i + header.length;
+  if (next === end || end - next < 4) return header;
+  const following = mp3FrameHeader(bytes, next);
+  return following && following.version === header.version && following.rate === header.rate ? header : null;
+}
+
+// Premier octet d'une trame MP3 dans un extrait, ou -1.
+function firstMp3Frame(bytes) {
+  for (let i = 0; i + 4 <= bytes.length; i++) {
+    if (mp3FrameAt(bytes, i, bytes.length)) return i;
+  }
+  return -1;
+}
+
+function readBits(bytes, pos, count) {
+  let value = 0;
+  for (let k = 0; k < count; k++) {
+    value = (value << 1) | ((bytes[(pos + k) >> 3] >> (7 - ((pos + k) & 7))) & 1);
+  }
+  return value;
+}
+
+function writeBits(bytes, pos, count, value) {
+  for (let k = 0; k < count; k++) {
+    const bit = (value >> (count - 1 - k)) & 1;
+    const index = (pos + k) >> 3;
+    const shift = 7 - ((pos + k) & 7);
+    bytes[index] = (bytes[index] & ~(1 << shift)) | (bit << shift);
+  }
+}
+
+// CRC-16 des trames protégées (polynôme 0x8005): octets 2 et 3 de l'en-tête, puis informations annexes.
+function mp3Crc(bytes, frame, sideLength) {
+  let crc = 0xffff;
+  const feed = (byte) => {
+    for (let bit = 7; bit >= 0; bit--) {
+      const top = ((crc >> 15) & 1) ^ ((byte >> bit) & 1);
+      crc = (crc << 1) & 0xffff;
+      if (top) crc ^= 0x8005;
+    }
+  };
+  feed(bytes[frame + 2]);
+  feed(bytes[frame + 3]);
+  for (let k = 0; k < sideLength; k++) feed(bytes[frame + 6 + k]);
+  return crc;
+}
+
+// Décale de `steps` pas le global_gain de chaque granule, en place. Tags ID3 et trame d'informations
+// (Xing, Info, VBRI) laissés intacts. Rend le nombre de trames modifiées et de gains bornés à 0 ou 255.
+function applyMp3Gain(bytes, steps) {
+  let i = 0;
+  while (i + 10 <= bytes.length && bytes[i] === 0x49 && bytes[i + 1] === 0x44 && bytes[i + 2] === 0x33) {
+    const size = (bytes[i + 6] << 21) | (bytes[i + 7] << 14) | (bytes[i + 8] << 7) | bytes[i + 9];
+    i += 10 + size + (bytes[i + 5] & 0x10 ? 10 : 0);
+  }
+  let end = bytes.length;
+  if (end - i >= 128 && bytes[end - 128] === 0x54 && bytes[end - 127] === 0x41 && bytes[end - 126] === 0x47) end -= 128;
+
+  let frames = 0;
+  let clamped = 0;
+  let first = true;
+  while (i + 4 <= end) {
+    const header = mp3FrameAt(bytes, i, end);
+    if (!header) {
+      i++;
+      continue;
+    }
+    const side = i + 4 + (header.crc ? 2 : 0);
+    if (first) {
+      first = false;
+      const tag = String.fromCharCode(...bytes.subarray(side + header.sideLength, side + header.sideLength + 4));
+      if (tag === "Xing" || tag === "Info" || tag === "VBRI") {
+        i += header.length;
+        continue;
+      }
+    }
+    const channels = header.mono ? 1 : 2;
+    // Début du premier granule: main_data_begin, bits privés, puis scfsi (MPEG1 seulement).
+    let pos = side * 8 + (header.mpeg1 ? 9 + (header.mono ? 5 : 3) + 4 * channels : 8 + (header.mono ? 1 : 2));
+    const granuleBits = header.mpeg1 ? 59 : 63;
+    for (let g = 0; g < (header.mpeg1 ? 2 : 1) * channels; g++) {
+      // part2_3_length (12 bits), big_values (9), puis global_gain (8).
+      const gainPos = pos + 21;
+      const target = readBits(bytes, gainPos, 8) + steps;
+      const gain = Math.max(0, Math.min(255, target));
+      if (gain !== target) clamped++;
+      writeBits(bytes, gainPos, 8, gain);
+      pos += granuleBits;
+    }
+    if (header.crc) {
+      const crc = mp3Crc(bytes, i, header.sideLength);
+      bytes[i + 4] = crc >> 8;
+      bytes[i + 5] = crc & 0xff;
+    }
+    frames++;
+    i += header.length;
+  }
+  return { frames, clamped };
+}
+
+// Filtre de pondération K (BS.1770): plateau aigu puis passe-haut, recalculés pour la fréquence
+// d'échantillonnage par la transformée bilinéaire (même calcul que libebur128, utilisé par ffmpeg).
+// Rend deux biquads [b0, b1, b2, a1, a2].
+function kWeighting(rate) {
+  let k = Math.tan((Math.PI * 1681.974450955533) / rate);
+  let q = 0.7071752369554196;
+  const vh = Math.pow(10, 3.999843853973347 / 20);
+  const vb = Math.pow(vh, 0.4996667741545416);
+  let a0 = 1 + k / q + k * k;
+  const shelf = [
+    (vh + (vb * k) / q + k * k) / a0,
+    (2 * (k * k - vh)) / a0,
+    (vh - (vb * k) / q + k * k) / a0,
+    (2 * (k * k - 1)) / a0,
+    (1 - k / q + k * k) / a0,
+  ];
+  k = Math.tan((Math.PI * 38.13547087602444) / rate);
+  q = 0.5003270373238773;
+  a0 = 1 + k / q + k * k;
+  const highPass = [1, -2, 1, (2 * (k * k - 1)) / a0, (1 - k / q + k * k) / a0];
+  return [shelf, highPass];
+}
+
+// Mesures d'un extrait décodé (un Float32Array par canal): énergie des blocs de 400 ms (pas de 100 ms) après
+// pondération K, nombre d'échantillons, et combien dépasseraient 0 dBFS pour chaque montée de 1 à MP3_MAX_STEPS pas.
+// Les `skip` premiers échantillons sont ignorés (début d'extrait mal décodé, faute de trames précédentes).
+function measureLevels(channels, rate, skip = 0) {
+  const length = channels.length ? channels[0].length : 0;
+  const hop = Math.round(rate / 10);
+  const hops = Math.max(0, Math.floor((length - skip) / hop));
+  const hopEnergy = new Float64Array(hops);
+  const thresholds = [];
+  for (let k = 1; k <= MP3_MAX_STEPS; k++) thresholds.push(Math.pow(10, (-MP3_GAIN_STEP_DB * k) / 20));
+  const over = new Array(MP3_MAX_STEPS).fill(0);
+  const [[b0, b1, b2, a1, a2], [c0, c1, c2, d1, d2]] = kWeighting(rate);
+  let samples = 0;
+
+  for (const data of channels) {
+    // Deux biquads en série, variables locales: la boucle tourne sur des millions d'échantillons.
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0, z1 = 0, z2 = 0;
+    for (let n = 0; n < skip + hops * hop; n++) {
+      const x = data[n];
+      const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+      const z = c0 * y + c1 * y1 + c2 * y2 - d1 * z1 - d2 * z2;
+      x2 = x1;
+      x1 = x;
+      y2 = y1;
+      y1 = y;
+      z2 = z1;
+      z1 = z;
+      if (n < skip) continue;
+      hopEnergy[Math.floor((n - skip) / hop)] += z * z;
+      const peak = x < 0 ? -x : x;
+      samples++;
+      // Seuils décroissants: un pic qui dépasse le seuil de k pas dépasse aussi ceux des montées plus fortes.
+      for (let k = MP3_MAX_STEPS - 1; k >= 0 && peak > thresholds[k]; k--) over[k]++;
+    }
+  }
+
+  const blocks = [];
+  for (let b = 0; b + 4 <= hops; b++) {
+    blocks.push((hopEnergy[b] + hopEnergy[b + 1] + hopEnergy[b + 2] + hopEnergy[b + 3]) / (4 * hop));
+  }
+  return { blocks, samples, over };
+}
+
+function mergeLevels(list) {
+  const merged = { blocks: [], samples: 0, over: new Array(MP3_MAX_STEPS).fill(0) };
+  for (const levels of list) {
+    merged.blocks.push(...levels.blocks);
+    merged.samples += levels.samples;
+    levels.over.forEach((count, k) => (merged.over[k] += count));
+  }
+  return merged;
+}
+
+// Niveau intégré en LUFS (seuils absolu de −70 et relatif de −10), -Infinity pour un silence.
+function gatedLoudness(blocks) {
+  const lufs = (energy) => -0.691 + 10 * Math.log10(energy);
+  const mean = (list) => list.reduce((sum, value) => sum + value, 0) / list.length;
+  const audible = blocks.filter((energy) => energy > 0 && lufs(energy) > -70);
+  if (!audible.length) return -Infinity;
+  const relative = lufs(mean(audible)) - 10;
+  const kept = audible.filter((energy) => lufs(energy) > relative);
+  return lufs(mean(kept));
+}
+
+// Pas de global_gain à appliquer (positif: plus fort) et niveau mesuré.
+function mp3GainSteps(levels) {
+  const lufs = gatedLoudness(levels.blocks);
+  if (!Number.isFinite(lufs) || !levels.samples) return { steps: 0, lufs };
+  const missing = MP3_TARGET_LUFS - lufs;
+  if (Math.abs(missing) <= MP3_TOLERANCE_DB) return { steps: 0, lufs };
+  let steps = Math.max(-MP3_MAX_STEPS, Math.min(MP3_MAX_STEPS, Math.round(missing / MP3_GAIN_STEP_DB)));
+  while (steps > 0 && levels.over[steps - 1] / levels.samples > MP3_MAX_CLIP_RATIO) steps--;
+  return { steps, lufs };
+}
+
+// 4 -> "+6 dB", 3 -> "+4,5 dB", -2 -> "−3 dB".
+function fmtGain(steps) {
+  const db = steps * MP3_GAIN_STEP_DB;
+  return `${db > 0 ? "+" : "−"}${String(Math.abs(db)).replace(".", ",")} dB`;
 }

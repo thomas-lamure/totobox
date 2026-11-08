@@ -144,6 +144,10 @@ void handleKnownCard(CardBinding& binding) {
 
   if (binding.mode == PlaybackMode::SdLocal) {
     logLine("main", "Lecture demandée: %s", binding.mediaPath.c_str());
+    // L'histoire passe avant un téléchargement depuis la page: la carte SD n'est lue que par la tâche audio.
+    if (webAdmin != nullptr) {
+      webAdmin->cancelDownload();
+    }
     if (audio.playPath(binding.mediaPath, binding.resumeTrackIndex, binding.resumeMs, binding.resumeByte)) {
       runtime.activeMediaPath = audio.currentPath();
       runtime.activeTrackIndex = audio.currentTrackIndex();

@@ -2,6 +2,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <vector>
 
 #include <ArduinoJson.h>
@@ -15,6 +16,7 @@
 #include "config_store.h"
 #include "id3_stripper.h"
 #include "totobox_config.h"
+#include "zip_stream.h"
 #if !TOTOBOX_OFFLINE
 #include "update_service.h"
 #endif
@@ -27,6 +29,8 @@ class WebAdmin {
   // Réseau changé (connecté, point d'accès démarré ou arrêté): portail captif et mDNS remis à jour.
   void onNetworkChanged();
   void loop();
+  // Téléchargement en cours (GET /api/download) abandonné: une histoire va lire la carte SD.
+  void cancelDownload();
   // Appelé à chaque morceau reçu pendant un envoi: le serveur web garde la main jusqu'à la fin de la requête,
   // loop() ne tourne plus, et ce rappel garde les LEDs vivantes.
   void setUploadTick(std::function<void()> tick) { uploadTick_ = std::move(tick); }
@@ -49,7 +53,8 @@ class WebAdmin {
   void onApi(const char* path, HTTPMethod method, std::function<void()> handler);
   // Code d'erreur si la requête vient d'un autre site ou vise un autre nom que la boîte, sinon nullptr.
   const char* foreignRequestError(bool mutating, bool jsonBody);
-  bool rejectIfForeign(bool mutating);
+  // jsonBody: le corps doit être du JSON (faux pour l'envoi de fichiers, en multipart).
+  bool rejectIfForeign(bool mutating, bool jsonBody = true);
   // Déchiffre les secrets envoyés par la page (secret_channel); répond 400/409 et renvoie true en cas d'échec.
   bool rejectIfSealedInvalid(JsonDocument& request);
   std::vector<String> allowedHosts() const;
@@ -95,11 +100,19 @@ class WebAdmin {
   void handleBackupRestore();
   void handlePurgeTrash();
   void handleUpdate();
+  void handleDownload();
+  const char* collectZipEntries(const String& dir, const String& root, uint8_t depth);
+  bool sendDownloadBytes(const uint8_t* data, size_t length);
+  void pumpDownload();
+  void pumpDownloadStep();
+  void finishDownload(const char* outcome);
   void sendJsonConfig();
   bool ensureDirectoryExists(const String& path);
   String resolveUploadPath(const String& targetDir, const String& safeName, const String& conflictMode) const;
   bool deletePathRecursive(const String& path);
   String movePathToTrash(const String& path);
+  // Après une restauration ou une suppression définitive: dossiers de la corbeille devenus vides retirés.
+  void removeEmptyTrashParents(const String& trashPath);
   bool buildTreeAtPath(JsonArray& out, const String& rootPath, bool includeTrash, uint8_t depth, LibrarySummary* summary = nullptr);
   String renamePath(const String& sourcePath, const String& desiredName, const String& conflictMode);
   String movePath(const String& sourcePath, const String& targetDir, const char*& error);
@@ -136,6 +149,22 @@ class WebAdmin {
   uint64_t sdTotalCache_ = 0;
   uint64_t sdUsedCache_ = 0;
   bool sdStatsValid_ = false;
+  // Téléchargement: envoyé par tranches à chaque tour de loop(), pour que la boîte reste réactive (cartes,
+  // molette, autres requêtes) pendant les dizaines de secondes que dure un gros fichier.
+  // Un dossier part en archive ZIP (zip_stream): en-tête, contenu et descripteur de chaque fichier, puis
+  // répertoire central.
+  enum class DownloadPhase : uint8_t { Idle, RawFile, ZipHeader, ZipData, ZipCentral };
+  DownloadPhase downloadPhase_ = DownloadPhase::Idle;
+  File downloadFile_;
+  WiFiClient downloadClient_;
+  std::unique_ptr<uint8_t[]> downloadBuffer_;
+  uint32_t downloadSent_ = 0;
+  uint32_t downloadSize_ = 0;
+  std::vector<zip_stream::Entry> zipEntries_;
+  std::vector<String> zipPaths_;
+  size_t zipIndex_ = 0;
+  uint32_t zipFileSent_ = 0;
+  uint32_t zipCentralOffset_ = 0;
   std::function<void()> uploadTick_;
   std::function<bool()> sdFormatter_;
 #if !TOTOBOX_OFFLINE

@@ -4,6 +4,7 @@
 #include <Arduino.h>
 
 #include <functional>
+#include <vector>
 
 // Règles des chemins de la bibliothèque sur la carte SD (sans dépendance matérielle: testées sur ordinateur).
 // Toute route web qui reçoit un chemin ou un nom le fait passer par ici avant de toucher à la carte: rien ne
@@ -54,8 +55,18 @@ bool trashTargetFor(const String& libraryPath, TrashTarget& target);
 // Emplacement d'origine d'un élément de la corbeille; "" si le chemin n'est pas dans la corbeille.
 String originalPathFromTrash(const String& trashPath);
 
+// Dossiers de la corbeille qui contenaient un élément restauré ou supprimé, du plus proche au plus haut, sans
+// /content/.trash: à retirer s'ils sont vides, la corbeille ne gardant que l'arborescence de ce qu'elle contient.
+// Vide si le chemin n'est pas dans la corbeille.
+std::vector<String> trashParents(const String& trashPath);
+
 // Contrôles d'un déplacement (chemins normalisés) avant tout accès à la carte: nullptr s'il est permis, sinon
 // "invalid_path" (vide, racine, corbeille) ou "invalid_move_target" (un dossier dans lui-même ou un descendant).
 const char* moveError(const String& sourcePath, const String& targetDir);
+
+// En-tête Content-Disposition d'un téléchargement (GET /api/download): nom en ASCII (caractères hors
+// [A-Za-z0-9 ._-] remplacés par "_") pour les navigateurs anciens, et nom exact encodé en UTF-8 (RFC 5987)
+// pour les autres, les fichiers copiés depuis un ordinateur pouvant porter des accents.
+String contentDisposition(const String& fileName);
 
 }  // namespace library_paths

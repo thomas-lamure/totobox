@@ -148,6 +148,26 @@ String originalPathFromTrash(const String& trashPath) {
   return String(kLibraryRoot) + relative;
 }
 
+std::vector<String> trashParents(const String& trashPath) {
+  std::vector<String> parents;
+  if (!isInTrash(trashPath)) {
+    return parents;
+  }
+  String dir = trashPath;
+  while (true) {
+    const int slash = dir.lastIndexOf('/');
+    if (slash <= 0) {
+      break;
+    }
+    dir = dir.substring(0, slash);
+    if (dir == kTrashRoot || !isInTrash(dir)) {
+      break;
+    }
+    parents.push_back(dir);
+  }
+  return parents;
+}
+
 const char* moveError(const String& sourcePath, const String& targetDir) {
   if (sourcePath.isEmpty() || sourcePath == kLibraryRoot || isInTrash(sourcePath) || targetDir.isEmpty() ||
       isInTrash(targetDir)) {
@@ -157,6 +177,34 @@ const char* moveError(const String& sourcePath, const String& targetDir) {
     return "invalid_move_target";
   }
   return nullptr;
+}
+
+String contentDisposition(const String& fileName) {
+  static const char kHex[] = "0123456789ABCDEF";
+  String ascii;
+  String encoded;
+  for (size_t index = 0; index < fileName.length(); ++index) {
+    const uint8_t c = static_cast<uint8_t>(fileName[index]);
+    const bool plain = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' ||
+                       c == '-' || c == '_';
+    // Un caractère UTF-8 sur plusieurs octets ne donne qu'un "_" dans le nom ASCII.
+    if (plain || c == ' ') {
+      ascii += static_cast<char>(c);
+    } else if ((c & 0xC0) != 0x80) {
+      ascii += '_';
+    }
+    if (plain) {
+      encoded += static_cast<char>(c);
+    } else {
+      encoded += '%';
+      encoded += kHex[c >> 4];
+      encoded += kHex[c & 0x0F];
+    }
+  }
+  if (ascii.isEmpty()) {
+    ascii = "fichier";
+  }
+  return "attachment; filename=\"" + ascii + "\"; filename*=UTF-8''" + encoded;
 }
 
 }  // namespace library_paths

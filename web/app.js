@@ -19,6 +19,10 @@ const STATE_INFO = {
 
 const ERRORS = {
   busy_playing: "La boîte lit une histoire. Réessaie quand elle est à l'arrêt.",
+  busy_downloading: "Un téléchargement est en cours. Réessaie quand il est terminé.",
+  empty_folder: "Aucun fichier audio dans ce dossier.",
+  too_many_files: "Trop de fichiers pour une seule archive (2000 au plus) : télécharge les sous-dossiers un par un.",
+  too_large: "Dossier trop gros pour une archive ZIP (4 Go au plus) : télécharge les sous-dossiers un par un.",
   sd_unavailable: "Carte SD absente ou illisible.",
   file_exists: "Un fichier porte déjà ce nom.",
   invalid_file_name: "Ce type de fichier n'est pas pris en charge.",
@@ -231,7 +235,7 @@ document.querySelectorAll("dialog").forEach((dialog) => {
 });
 
 // Renvoie null si annulé, "alt" pour le bouton secondaire, true (ou le texte saisi) pour OK.
-function ask({ title, message = "", value = null, okLabel = "OK", danger = false, validate = null, altLabel = "", extraLabel = "" }) {
+function ask({ title, message = "", value = null, okLabel = "OK", danger = false, validate = null, altLabel = "", extraLabel = "", downloadLabel = "" }) {
   const dialog = $("ask-dialog");
   $("ask-title").textContent = title;
   $("ask-message").textContent = message;
@@ -248,6 +252,8 @@ function ask({ title, message = "", value = null, okLabel = "OK", danger = false
   $("ask-alt").hidden = !altLabel;
   $("ask-extra").textContent = extraLabel;
   $("ask-extra").hidden = !extraLabel;
+  $("ask-download").querySelector("span").textContent = downloadLabel;
+  $("ask-download").hidden = !downloadLabel;
   return new Promise((resolve) => {
     const onClick = (event) => {
       if (value !== null && validate) {
@@ -266,6 +272,7 @@ function ask({ title, message = "", value = null, okLabel = "OK", danger = false
         ok.removeEventListener("click", onClick);
         if (dialog.returnValue === "alt" && altLabel) return resolve("alt");
         if (dialog.returnValue === "extra" && extraLabel) return resolve("extra");
+        if (dialog.returnValue === "download" && downloadLabel) return resolve("download");
         if (dialog.returnValue !== "ok") return resolve(null);
         resolve(value === null ? true : input.value.trim());
       },
@@ -1322,12 +1329,89 @@ function pickFiles() {
   });
 }
 
-async function uploadFiles(files, targetDir, onProgress) {
+// ---------- Égalisation du volume des MP3 ----------
+// Mesure sur le fichier entier, décodé par tranches: un extrait ne suffit pas à estimer l'écrêtage, concentré
+// dans quelques passages forts. Une tranche de 512 Ko décodée tient en mémoire même sur un téléphone.
+const NORMALIZE_KEY = "totobox.normalizeMp3";
+const MP3_CHUNK_BYTES = 512 * 1024;
+// Début de tranche ignoré: les premières trames dépendent des précédentes (réservoir de bits).
+const MP3_CHUNK_SKIP_SEC = 0.05;
+
+function normalizeEnabled() {
+  try {
+    return localStorage.getItem(NORMALIZE_KEY) !== "off";
+  } catch (error) {
+    return true;
+  }
+}
+
+function setNormalizeEnabled(enabled) {
+  try {
+    localStorage.setItem(NORMALIZE_KEY, enabled ? "on" : "off");
+  } catch (error) {
+    // Préférence de ce navigateur seulement: sans stockage, la case revient cochée.
+  }
+  document.querySelectorAll("[data-normalize]").forEach((input) => (input.checked = enabled));
+}
+
+document.querySelectorAll("[data-normalize]").forEach((input) => {
+  input.checked = normalizeEnabled();
+  input.addEventListener("change", () => setNormalizeEnabled(input.checked));
+});
+
+function decodeAudio(context, buffer) {
+  // Safari ancien: decodeAudioData ne rend pas de promesse, seulement les rappels.
+  return new Promise((resolve, reject) => {
+    const pending = context.decodeAudioData(buffer, resolve, reject);
+    if (pending && pending.then) pending.then(resolve, reject);
+  });
+}
+
+// Mesures du fichier (voir measureLevels), ou null si le navigateur ne sait pas le décoder.
+async function measureMp3(file, onRatio) {
+  const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!Offline) return null;
+  const context = new Offline(2, 44100, 44100);
+  const parts = [];
+  for (let start = 0; start < file.size; start += MP3_CHUNK_BYTES) {
+    onRatio(start / file.size);
+    const bytes = new Uint8Array(await file.slice(start, start + MP3_CHUNK_BYTES).arrayBuffer());
+    const first = firstMp3Frame(bytes);
+    if (first < 0) continue;
+    let audio;
+    try {
+      audio = await decodeAudio(context, bytes.buffer.slice(first));
+    } catch (error) {
+      continue;
+    }
+    const channels = [];
+    for (let c = 0; c < audio.numberOfChannels; c++) channels.push(audio.getChannelData(c));
+    parts.push(measureLevels(channels, audio.sampleRate, Math.round(audio.sampleRate * MP3_CHUNK_SKIP_SEC)));
+  }
+  return parts.length ? mergeLevels(parts) : null;
+}
+
+// Fichier à envoyer (MP3 au volume corrigé, ou inchangé) et pas appliqués.
+async function normalizeMp3(file, onRatio) {
+  if (!file.name.toLowerCase().endsWith(".mp3")) return { file, steps: 0 };
+  const levels = await measureMp3(file, onRatio);
+  if (!levels) return { file, steps: 0 };
+  const { steps } = mp3GainSteps(levels);
+  if (!steps) return { file, steps: 0 };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (!applyMp3Gain(bytes, steps).frames) return { file, steps: 0 };
+  return { file: new Blob([bytes], { type: file.type || "audio/mpeg" }), steps };
+}
+
+// onPrepare(index, ratio): analyse du fichier `index` avant l'envoi.
+async function uploadFiles(files, targetDir, onProgress, onPrepare) {
   const formData = new FormData();
   formData.append("targetPath", targetDir);
   formData.append("conflictMode", "rename");
   let strippedBytes = 0;
-  for (const file of files) {
+  const gains = [];
+  const normalize = normalizeEnabled();
+  for (const [index, file] of files.entries()) {
     let payloadFile = file;
     try {
       payloadFile = await stripId3(file);
@@ -1335,6 +1419,16 @@ async function uploadFiles(files, targetDir, onProgress) {
       payloadFile = file;
     }
     strippedBytes += file.size - payloadFile.size;
+    if (normalize) {
+      try {
+        const named = new File([payloadFile], file.name, { type: file.type });
+        const result = await normalizeMp3(named, (ratio) => onPrepare(index, ratio));
+        payloadFile = result.file;
+        if (result.steps) gains.push(result.steps);
+      } catch (error) {
+        // Analyse impossible (mémoire, format inattendu): le fichier part tel quel.
+      }
+    }
     formData.append("files", payloadFile, file.name);
   }
 
@@ -1354,22 +1448,38 @@ async function uploadFiles(files, targetDir, onProgress) {
         data = {};
       }
       const ok = xhr.status >= 200 && xhr.status < 300 && data.ok !== false;
-      resolve({ ok, error: ok ? "" : data.error || `http_${xhr.status}`, data, strippedBytes });
+      resolve({ ok, error: ok ? "" : data.error || `http_${xhr.status}`, data, strippedBytes, gains });
     });
-    xhr.addEventListener("error", () => resolve({ ok: false, error: "network", data: {}, strippedBytes }));
-    xhr.addEventListener("abort", () => resolve({ ok: false, error: "upload_aborted", data: {}, strippedBytes }));
+    xhr.addEventListener("error", () => resolve({ ok: false, error: "network", data: {}, strippedBytes, gains }));
+    xhr.addEventListener("abort", () => resolve({ ok: false, error: "upload_aborted", data: {}, strippedBytes, gains }));
     xhr.send(formData);
   });
+}
+
+// « Volume égalisé pour 2 fichiers : +6 dB, +4,5 dB. »
+function gainSummary(gains) {
+  if (!gains.length) return "";
+  const distinct = [...new Set(gains)].sort((a, b) => b - a).map(fmtGain);
+  return ` Volume égalisé pour ${plural(gains.length, "fichier", "fichiers")} : ${distinct.join(", ")}.`;
 }
 
 async function uploadWithProgress(files, targetDir, wrap, label, bar) {
   wrap.hidden = false;
   bar.style.width = "0%";
-  label.textContent = `Envoi de ${plural(files.length, "fichier", "fichiers")}…`;
-  const result = await uploadFiles(files, targetDir, (ratio) => {
-    bar.style.width = `${Math.round(ratio * 100)}%`;
-    label.textContent = `Envoi de ${plural(files.length, "fichier", "fichiers")}… ${Math.round(ratio * 100)} %`;
-  });
+  const sending = `Envoi de ${plural(files.length, "fichier", "fichiers")}…`;
+  label.textContent = sending;
+  const result = await uploadFiles(
+    files,
+    targetDir,
+    (ratio) => {
+      bar.style.width = `${Math.round(ratio * 100)}%`;
+      label.textContent = `${sending} ${Math.round(ratio * 100)} %`;
+    },
+    (index, ratio) => {
+      bar.style.width = `${Math.round(((index + ratio) / files.length) * 100)}%`;
+      label.textContent = files.length > 1 ? `Analyse du volume (${index + 1}/${files.length})…` : "Analyse du volume…";
+    },
+  );
   wrap.hidden = true;
   if (!result.ok) {
     toast(errorText(result.error), true);
@@ -1380,7 +1490,9 @@ async function uploadWithProgress(files, targetDir, wrap, label, bar) {
     return false;
   }
   const saved = result.strippedBytes + (result.data.metadataBytesStripped || 0);
-  toast(`${plural(result.data.filesUploaded || files.length, "fichier ajouté", "fichiers ajoutés")}${saved ? ` (${fmtBytes(saved)} de pochettes et tags retirés)` : ""}.`);
+  toast(
+    `${plural(result.data.filesUploaded || files.length, "fichier ajouté", "fichiers ajoutés")}${saved ? ` (${fmtBytes(saved)} de pochettes et tags retirés)` : ""}.${gainSummary(result.gains)}`,
+  );
   return true;
 }
 
@@ -1409,7 +1521,8 @@ async function openFiles(mode = "files") {
   renderFiles();
   if (isPlaying()) return;
   if (mode === "trash") {
-    await loadTrash();
+    // La bibliothèque dit quels dossiers de la corbeille ne servent qu'au rangement (voir trashItems).
+    await Promise.all([loadTrash(), loadLibrary()]);
   } else {
     await loadLibrary();
   }
@@ -1495,7 +1608,7 @@ function renderFiles() {
 
 function renderTrash() {
   const trash = app.trash;
-  const entries = (trash && trash.entries) || [];
+  const entries = trash ? trashItems(trash.entries, app.library && app.library.entries) : [];
   $("trash-purge").hidden = !entries.length;
   if (!trash) {
     setHtml($("trash-list"), `<div class="empty">${isPlaying() ? "Disponible quand la boîte est à l'arrêt." : "Chargement…"}</div>`);
@@ -1508,7 +1621,7 @@ function renderTrash() {
   setHtml($("trash-list"), entries
     .map((entry) => {
       const isDir = entry.type === "directory";
-      const original = LIBRARY_ROOT + entry.path.slice(TRASH_ROOT.length);
+      const original = originalPath(entry.path);
       const parent = original.slice(0, original.lastIndexOf("/"));
       const origin = parent === LIBRARY_ROOT ? "Depuis la racine" : `Depuis ${relPath(parent)}`;
       return `
@@ -1708,14 +1821,21 @@ $("files-list").addEventListener("click", async (event) => {
   if (!button) return;
   const path = button.dataset.actions;
   const name = baseName(path);
+  const isFile = button.dataset.type !== "directory";
   const choice = await ask({
-    title: "Renommer, déplacer ou supprimer",
+    title: "Télécharger, renommer, déplacer ou supprimer",
     value: name,
     okLabel: "Renommer",
     altLabel: "Corbeille",
     extraLabel: "Déplacer dans un autre dossier…",
+    downloadLabel: isFile ? "Télécharger" : canPickFolder() ? "Télécharger dans un dossier de l'ordinateur…" : "Télécharger (archive ZIP)",
     validate: (v) => (v ? "" : "Saisis un nom."),
   });
+  if (choice === "download") {
+    if (isFile || !canPickFolder()) downloadFile(path, !isFile);
+    else downloadFolderTo(path);
+    return;
+  }
   if (choice === "alt") {
     trashPath(path);
     return;
@@ -1736,6 +1856,96 @@ $("files-list").addEventListener("click", async (event) => {
   await loadLibrary();
   renderFiles();
 });
+
+// ---------- Téléchargement ----------
+
+// Téléchargement natif du navigateur (lien en pièce jointe): pas de copie en mémoire dans la page, la boîte
+// envoie le fichier par morceaux et reste réactive. Une histoire lancée entre-temps l'interrompt. Un dossier
+// arrive en archive ZIP, avec ses sous-dossiers.
+function downloadFile(path, folder = false) {
+  if (isPlaying()) {
+    toast(errorText("busy_playing"), true);
+    return;
+  }
+  // Un lien en pièce jointe ne rend pas l'erreur de la boîte: le cas courant (dossier vide) est vu avant.
+  if (folder && !folderDownloadPlan(app.library && app.library.entries, path).length) {
+    toast(errorText("empty_folder"), true);
+    return;
+  }
+  const name = folder ? `${path === LIBRARY_ROOT ? "totobox" : baseName(path)}.zip` : baseName(path);
+  const link = document.createElement("a");
+  link.href = `/api/download?path=${encodeURIComponent(path)}`;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  toast(`Téléchargement de « ${name} » lancé.`);
+}
+
+// Choix d'un dossier de l'ordinateur: seulement dans une page sécurisée (HTTPS) de Chrome ou Edge. La page de la
+// boîte étant en HTTP, il faut l'avoir autorisée dans chrome://flags (« Insecure origins treated as secure »).
+function canPickFolder() {
+  return typeof window.showDirectoryPicker === "function";
+}
+
+// Dossier recopié fichier par fichier dans le dossier choisi, avec la même arborescence que sur la carte.
+// Arborescence lue dans la bibliothèque déjà chargée (3 niveaux de sous-dossiers, comme l'écran Fichiers).
+async function downloadFolderTo(path) {
+  if (isPlaying()) {
+    toast(errorText("busy_playing"), true);
+    return;
+  }
+  let target;
+  try {
+    target = await window.showDirectoryPicker({ id: "totobox", mode: "readwrite" });
+  } catch (error) {
+    return;  // choix annulé
+  }
+  const plan = folderDownloadPlan(app.library && app.library.entries, path);
+  if (!plan.length) {
+    toast("Aucun fichier audio dans ce dossier.", true);
+    return;
+  }
+  const wrap = $("files-progress");
+  const label = $("files-progress-label");
+  const bar = $("files-progress-bar");
+  const total = plan.reduce((sum, item) => sum + item.size, 0) || 1;
+  let received = 0;
+  wrap.hidden = false;
+  try {
+    for (const [index, item] of plan.entries()) {
+      label.textContent = `Téléchargement (${index + 1}/${plan.length}) : ${item.name}`;
+      let dir = target;
+      for (const part of item.dirs) dir = await dir.getDirectoryHandle(part, { create: true });
+      const response = await fetch(`/api/download?path=${encodeURIComponent(item.path)}`);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `http_${response.status}`);
+      }
+      const writable = await (await dir.getFileHandle(item.name, { create: true })).createWritable();
+      try {
+        const reader = response.body.getReader();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          await writable.write(value);
+          received += value.length;
+          bar.style.width = `${Math.min(100, Math.round((received / total) * 100))}%`;
+        }
+        await writable.close();
+      } catch (error) {
+        await writable.abort().catch(() => {});
+        throw error;
+      }
+    }
+    toast(`${plural(plan.length, "fichier téléchargé", "fichiers téléchargés")} dans « ${target.name} ».`);
+  } catch (error) {
+    const code = String(error.message || "");
+    toast(ERRORS[code] ? errorText(code) : "Téléchargement interrompu (histoire lancée ou connexion perdue).", true);
+  } finally {
+    wrap.hidden = true;
+  }
+}
 
 // ---------- Déplacement ----------
 

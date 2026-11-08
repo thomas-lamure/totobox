@@ -2,7 +2,7 @@
 
 La page web ([web/](../web)) ne parle à la boîte que par cette API JSON locale. Elle reste simple et utilisable depuis un script (`curl`). Le faux serveur de développement ([scripts/mock-server.mjs](../scripts/mock-server.mjs), voir [development.md](development.md#page-web)) l'imite sans matériel.
 
-Erreurs communes: `403 locked` (réglages verrouillés), `503 busy_playing` (accès à la carte SD refusé pendant la lecture), `403 forbidden_host`, `403 forbidden_origin` et `415 json_required` (voir « Protection contre les autres sites »).
+Erreurs communes: `403 locked` (réglages verrouillés), `503 busy_playing` (accès à la carte SD refusé pendant la lecture), `503 busy_downloading` (même chose pendant un téléchargement), `403 forbidden_host`, `403 forbidden_origin` et `415 json_required` (voir « Protection contre les autres sites »).
 
 | Route | Verrouillée | En lecture | Rôle |
 |---|---|---|---|
@@ -19,12 +19,13 @@ Erreurs communes: `403 locked` (réglages verrouillés), `503 busy_playing` (acc
 | `POST /api/lock/cards` | non | oui | `{action:"add"/"remove", cardUid, cardLabel}` |
 | `GET /api/library` | non | non | arborescence de `/content`, espace SD |
 | `POST /api/upload` | non | non | multipart, tags ID3 retirés à l'écriture |
+| `GET /api/download?path=` | non | non | fichier audio de `/content` (hors corbeille) en pièce jointe (`Content-Disposition`, nom UTF-8); un dossier part en archive ZIP sans compression (`dossier.zip`, `totobox.zip` pour `/content`, sous-dossiers compris, fichiers audio seulement, 2000 fichiers et 4 Go au plus). Envoyé par morceaux sans bloquer la boîte, interrompu si une histoire démarre. Un seul à la fois. Erreurs: `invalid_path`, `not_found`, `sd_unavailable`, `empty_folder`, `too_many_files`, `too_large` |
 | `POST /api/folder` | non | non | crée un dossier |
 | `POST /api/rename` | non | non | renomme fichier ou dossier |
 | `POST /api/move` | non | non | `{path, targetDir}`: déplace fichier ou dossier, renvoie `movedPath` |
 | `POST /api/delete` | non | non | déplace vers `/content/.trash` |
 | `GET /api/trash` | non | non | contenu de la corbeille |
-| `POST /api/restore` | non | non | restaure depuis la corbeille |
+| `POST /api/restore` | non | non | restaure depuis la corbeille; les dossiers de la corbeille vidés sont retirés |
 | `POST /api/trash/purge` | non | non | vide la corbeille |
 | `GET /api/cards/backup` | non | non | sauvegarde présente sur la SD: `exists`, `count`, `savedAt` |
 | `POST /api/cards/backup` | non | non | `{savedAt}`: sauvegarde les cartes dans `/totobox-cartes.json` (remplace la précédente) |

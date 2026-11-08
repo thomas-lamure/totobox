@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { crc32 } from "node:zlib";
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 const nacl = createRequire(import.meta.url)(join(WEB, "vendor", "nacl.min.js"));
@@ -164,6 +165,14 @@ function freePath(dir, name) {
   const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
   for (let i = 1; files.has(candidate); i++) candidate = `${dir}/${stem}-${i}${ext}`;
   return candidate;
+}
+
+// Comme la boîte: dossiers de la corbeille vidés par une restauration ou une suppression retirés.
+function removeEmptyTrashParents(path) {
+  for (let dir = parentOf(path); dir.startsWith(TRASH_ROOT + "/"); dir = parentOf(dir)) {
+    if ([...files.keys()].some((key) => key.startsWith(dir + "/"))) break;
+    files.delete(dir);
+  }
 }
 
 function movePrefix(from, to) {
@@ -533,6 +542,7 @@ const routes = [
     ensureDir(parent);
     const restoredPath = freePath(parent, baseName(original));
     movePrefix(path, restoredPath);
+    removeEmptyTrashParents(path);
     return [200, { ok: true, path, restoredPath }];
   }],
   ["POST", "/api/trash/purge", true, true, (body) => {
@@ -626,6 +636,8 @@ async function handleUpload(request, raw) {
     if (!AUDIO.test(name)) return [400, { ok: false, error: "invalid_file_name" }];
     const path = conflictMode === "replace" ? `${target}/${name}` : freePath(target, name);
     addFile(path, file.size);
+    // Contenu gardé pour le téléchargement (fichiers de départ: des zéros de la taille annoncée).
+    files.get(path).data = Buffer.from(await file.arrayBuffer());
     uploadedPaths.push(path);
     bytesWritten += file.size;
   }
@@ -633,6 +645,90 @@ async function handleUpload(request, raw) {
     ok: true, targetPath: target, conflictMode, lastResolvedPath: uploadedPaths.at(-1) || "", bytesWritten,
     metadataBytesStripped: 0, filesUploaded: uploadedPaths.length, filesSkipped: 0, uploadedPaths,
   }];
+}
+
+// Téléchargement d'un fichier audio de la bibliothèque (hors corbeille), en pièce jointe; un dossier part en
+// archive ZIP stockée, comme sur la boîte (src/zip_stream.cpp).
+function handleDownload(url, response) {
+  if (isLocked()) return send(response, 403, { ok: false, error: "locked" });
+  if (audioPlaying()) return send(response, 503, { ok: false, error: "busy_playing" });
+  if (runtime.sdState !== "ready") return send(response, 503, { ok: false, error: "sd_unavailable" });
+  const path = (url.searchParams.get("path") || "").replace(/\/+$/, "") || LIBRARY_ROOT;
+  if (!(path === LIBRARY_ROOT || path.startsWith(LIBRARY_ROOT + "/")) || path.includes("..") ||
+      path === TRASH_ROOT || path.startsWith(TRASH_ROOT + "/")) {
+    return send(response, 400, { ok: false, error: "invalid_path" });
+  }
+  const node = path === LIBRARY_ROOT ? { type: "directory" } : files.get(path);
+  if (!node) return send(response, 404, { ok: false, error: "not_found" });
+  let name = baseName(path);
+  let content;
+  if (node.type === "directory") {
+    const label = path === LIBRARY_ROOT ? "totobox" : baseName(path);
+    const entries = [...files.keys()]
+      .filter((key) => key.startsWith(path + "/") && !key.startsWith(TRASH_ROOT + "/") && files.get(key).type !== "directory" && AUDIO.test(key))
+      .sort()
+      .map((key) => ({ name: label + key.slice(path.length), data: files.get(key).data || Buffer.alloc(files.get(key).size) }));
+    if (!entries.length) return send(response, 400, { ok: false, error: "empty_folder" });
+    content = zipStored(entries);
+    name = `${label}.zip`;
+  } else {
+    if (!AUDIO.test(path)) return send(response, 400, { ok: false, error: "invalid_path" });
+    content = node.data || Buffer.alloc(node.size);
+  }
+  response.writeHead(200, {
+    "Content-Type": node.type === "directory" ? "application/zip" : "application/octet-stream",
+    "Content-Length": content.length,
+    "Content-Disposition": `attachment; filename="${name.replace(/[^A-Za-z0-9 ._-]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+    "Cache-Control": "no-store",
+  });
+  response.end(content);
+}
+
+// Archive ZIP sans compression, CRC dans un descripteur après chaque fichier (même format que la boîte).
+function zipStored(entries) {
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  for (const { name, data } of entries) {
+    const nameBytes = Buffer.from(name);
+    const crc = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0808, 6);
+    local.writeUInt16LE(0x21, 12);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(nameBytes.length, 26);
+    const descriptor = Buffer.alloc(16);
+    descriptor.writeUInt32LE(0x08074b50, 0);
+    descriptor.writeUInt32LE(crc, 4);
+    descriptor.writeUInt32LE(data.length, 8);
+    descriptor.writeUInt32LE(data.length, 12);
+    const header = Buffer.alloc(46);
+    header.writeUInt32LE(0x02014b50, 0);
+    header.writeUInt16LE(0x0314, 4);
+    header.writeUInt16LE(20, 6);
+    header.writeUInt16LE(0x0808, 8);
+    header.writeUInt16LE(0x21, 14);
+    header.writeUInt32LE(crc, 16);
+    header.writeUInt32LE(data.length, 20);
+    header.writeUInt32LE(data.length, 24);
+    header.writeUInt16LE(nameBytes.length, 28);
+    header.writeUInt32LE((0o100644 << 16) >>> 0, 38);
+    header.writeUInt32LE(offset, 42);
+    parts.push(local, nameBytes, data, descriptor);
+    central.push(header, nameBytes);
+    offset += 30 + nameBytes.length + data.length + 16;
+  }
+  const centralSize = central.reduce((sum, part) => sum + part.length, 0);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralSize, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...parts, ...central, end]);
 }
 
 // ---------- Page de simulation ----------
@@ -717,6 +813,7 @@ createServer(async (request, response) => {
       const [code, data] = await handleUpload(request, raw);
       return send(response, code, data);
     }
+    if (url.pathname === "/api/download" && request.method === "GET") return handleDownload(url, response);
     if (url.pathname.startsWith("/api/")) {
       const route = routes.find(([method, path]) => method === request.method && path === url.pathname);
       if (!route) return send(response, 404, { ok: false, error: "not_found" });

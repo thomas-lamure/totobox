@@ -14,6 +14,7 @@
 #include "library_paths.h"
 #include "update_rules.h"
 #include "version.h"
+#include "zip_stream.h"
 #include "logger.h"
 #include "network_names.h"
 #include "request_guard.h"
@@ -21,6 +22,8 @@
 #include "totobox_config.h"
 
 #include <algorithm>
+#include <ctime>
+#include <new>
 #include <vector>
 
 namespace {
@@ -29,6 +32,12 @@ using library_paths::kLibraryRoot;
 using library_paths::kTrashRoot;
 constexpr uint8_t kLibraryMaxDepth = 3;
 constexpr uint16_t kDnsPort = 53;
+// Téléchargement: morceaux de 4 Ko lus sur la carte, au plus 20 ms d'envoi par tour de loop().
+constexpr size_t kDownloadChunkBytes = 4096;
+constexpr uint32_t kDownloadSliceMs = 20;
+// Dossier téléchargé en ZIP: profondeur et nombre de fichiers bornés (liste gardée en mémoire pendant l'envoi).
+constexpr uint8_t kZipMaxDepth = 6;
+constexpr size_t kZipMaxFiles = 2000;
 
 // URL de test de connectivité des téléphones et ordinateurs. Rediriger ces requêtes vers la boîte
 // déclenche l'ouverture automatique de la fenêtre "Se connecter au réseau".
@@ -126,6 +135,7 @@ void WebAdmin::loop() {
   }
   announceMdnsPeriodically();
   server_.handleClient();
+  pumpDownload();
   // Une requête d'envoi est traitée en entier dans handleClient(): à son retour, l'envoi est terminé (ou abandonné).
   runtime_.uploading = false;
 }
@@ -198,7 +208,7 @@ void WebAdmin::registerRoutes() {
       "/api/upload", HTTP_POST,
       [this]() {
         // Envoi multipart: l'origine est contrôlée, pas le JSON.
-        if (rejectIfForeign(true)) {
+        if (rejectIfForeign(true, false)) {
           return;
         }
         noteActivity();
@@ -225,6 +235,7 @@ void WebAdmin::registerRoutes() {
   onApi("/api/sd/format", HTTP_POST, [this]() { noteActivity(); handleSdFormat(); });
   onApi("/api/trash/purge", HTTP_POST, [this]() { noteActivity(); handlePurgeTrash(); });
   onApi("/api/update", HTTP_POST, [this]() { noteActivity(); handleUpdate(); });
+  onApi("/api/download", HTTP_GET, [this]() { noteActivity(); handleDownload(); });
 }
 
 void WebAdmin::onApi(const char* path, HTTPMethod method, std::function<void()> handler) {
@@ -272,8 +283,8 @@ bool WebAdmin::rejectIfSealedInvalid(JsonDocument& request) {
   return true;
 }
 
-bool WebAdmin::rejectIfForeign(bool mutating) {
-  const char* error = foreignRequestError(mutating, true);
+bool WebAdmin::rejectIfForeign(bool mutating, bool jsonBody) {
+  const char* error = foreignRequestError(mutating, jsonBody);
   if (error == nullptr) {
     return false;
   }
@@ -836,11 +847,286 @@ void WebAdmin::handleLockCards() {
 }
 
 bool WebAdmin::rejectIfBusy() {
-  if (!runtime_.audioPlaying) {
-    return false;
+  if (runtime_.audioPlaying) {
+    server_.send(503, "application/json", "{\"ok\":false,\"error\":\"busy_playing\"}");
+    return true;
   }
-  server_.send(503, "application/json", "{\"ok\":false,\"error\":\"busy_playing\"}");
-  return true;
+  // Un seul accès à la carte à la fois: pas de renommage ni de corbeille d'un fichier en cours d'envoi.
+  if (downloadPhase_ != DownloadPhase::Idle) {
+    server_.send(503, "application/json", "{\"ok\":false,\"error\":\"busy_downloading\"}");
+    return true;
+  }
+  return false;
+}
+
+void WebAdmin::handleDownload() {
+  if (rejectIfLocked() || rejectIfBusy()) {
+    return;
+  }
+  const String path = library_paths::normalizeLibraryPath(server_.arg("path"));
+  if (path.isEmpty() || library_paths::isInTrash(path)) {
+    server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_path\"}");
+    return;
+  }
+  if (!runtime_.sdReady) {
+    server_.send(503, "application/json", "{\"ok\":false,\"error\":\"sd_unavailable\"}");
+    return;
+  }
+  File file = SD.open(path, FILE_READ);
+  if (!file) {
+    server_.send(404, "application/json", "{\"ok\":false,\"error\":\"not_found\"}");
+    return;
+  }
+  const bool folder = file.isDirectory();
+  if (!folder && !library_paths::isAudioFile(path)) {
+    file.close();
+    server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_path\"}");
+    return;
+  }
+  if (!downloadBuffer_) {
+    downloadBuffer_.reset(new (std::nothrow) uint8_t[kDownloadChunkBytes]);
+    if (!downloadBuffer_) {
+      file.close();
+      server_.send(503, "application/json", "{\"ok\":false,\"error\":\"out_of_memory\"}");
+      return;
+    }
+  }
+
+  String name;
+  uint32_t size = 0;
+  if (folder) {
+    file.close();
+    zipEntries_.clear();
+    zipPaths_.clear();
+    const char* error = collectZipEntries(path, path, 0);
+    size = error == nullptr ? zip_stream::archiveSize(zipEntries_) : 0;
+    if (error == nullptr && size == 0) {
+      error = zipEntries_.empty() ? "empty_folder" : "too_large";
+    }
+    if (error != nullptr) {
+      zipEntries_.clear();
+      zipPaths_.clear();
+      server_.send(400, "application/json", String("{\"ok\":false,\"error\":\"") + error + "\"}");
+      return;
+    }
+    name = zip_stream::archiveName(path);
+    downloadPhase_ = DownloadPhase::ZipHeader;
+    zipIndex_ = 0;
+  } else {
+    name = path.substring(path.lastIndexOf('/') + 1);
+    size = file.size();
+    downloadFile_ = file;
+    downloadPhase_ = DownloadPhase::RawFile;
+  }
+
+  // En-têtes seulement: le contenu part ensuite de pumpDownload(). Le serveur lâche la connexion au retour du
+  // gestionnaire (« Connection: close »), la copie du client la garde ouverte jusqu'à la fin de l'envoi.
+  server_.sendHeader("Content-Disposition", library_paths::contentDisposition(name));
+  server_.sendHeader("Cache-Control", "no-store");
+  server_.setContentLength(size);
+  server_.send(200, folder ? "application/zip" : "application/octet-stream", "");
+  downloadClient_ = server_.client();
+  downloadSent_ = 0;
+  downloadSize_ = size;
+  logLine("web", "Téléchargement de %s (%u octets%s)", path.c_str(), static_cast<unsigned>(size),
+          folder ? ", archive ZIP" : "");
+}
+
+// Fichiers audio d'un dossier et de ses sous-dossiers (hors corbeille), triés par nom. Chaque dossier est
+// refermé avant d'ouvrir ses sous-dossiers: la carte SD n'accepte que quelques fichiers ouverts à la fois.
+const char* WebAdmin::collectZipEntries(const String& dir, const String& root, uint8_t depth) {
+  if (depth > kZipMaxDepth) {
+    return nullptr;
+  }
+  File folder = SD.open(dir);
+  if (!folder || !folder.isDirectory()) {
+    return "not_found";
+  }
+  std::vector<String> files;
+  std::vector<String> folders;
+  File entry = folder.openNextFile();
+  while (entry) {
+    String name = entry.name();
+    if (!name.startsWith("/")) {
+      name = dir + "/" + name;
+    }
+    if (entry.isDirectory()) {
+      if (!library_paths::isInTrash(name)) {
+        folders.push_back(name);
+      }
+    } else if (library_paths::isAudioFile(name)) {
+      files.push_back(name);
+    }
+    entry.close();
+    entry = folder.openNextFile();
+  }
+  folder.close();
+
+  auto byName = [](const String& left, const String& right) { return strcasecmp(left.c_str(), right.c_str()) < 0; };
+  std::sort(files.begin(), files.end(), byName);
+  std::sort(folders.begin(), folders.end(), byName);
+  for (const String& path : files) {
+    if (zipEntries_.size() >= kZipMaxFiles) {
+      return "too_many_files";
+    }
+    File file = SD.open(path, FILE_READ);
+    if (!file) {
+      continue;
+    }
+    zip_stream::Entry item;
+    item.name = zip_stream::entryName(root, path);
+    item.size = file.size();
+    const time_t written = file.getLastWrite();
+    struct tm when = {};
+    localtime_r(&written, &when);
+    zip_stream::dosDateTime(when.tm_year + 1900, when.tm_mon + 1, when.tm_mday, when.tm_hour, when.tm_min, when.tm_sec,
+                            item.dosDate, item.dosTime);
+    file.close();
+    zipEntries_.push_back(item);
+    zipPaths_.push_back(path);
+  }
+  for (const String& path : folders) {
+    if (const char* error = collectZipEntries(path, root, depth + 1)) {
+      return error;
+    }
+  }
+  return nullptr;
+}
+
+bool WebAdmin::sendDownloadBytes(const uint8_t* data, size_t length) {
+  const size_t written = downloadClient_.write(data, length);
+  downloadSent_ += written;
+  return written == length;
+}
+
+void WebAdmin::pumpDownload() {
+  if (downloadPhase_ == DownloadPhase::Idle) {
+    return;
+  }
+  if (runtime_.audioPlaying || !runtime_.sdReady) {
+    finishDownload("interrompu");
+    return;
+  }
+  if (!downloadClient_.connected()) {
+    finishDownload("abandonné par le navigateur");
+    return;
+  }
+  noteActivity();
+  // Tranche courte: une écriture n'attend que la place dans le tampon TCP (quelques Ko).
+  const uint32_t startedMs = millis();
+  while (downloadPhase_ != DownloadPhase::Idle && millis() - startedMs < kDownloadSliceMs) {
+    pumpDownloadStep();
+  }
+}
+
+void WebAdmin::pumpDownloadStep() {
+  uint8_t* buffer = downloadBuffer_.get();
+  switch (downloadPhase_) {
+    case DownloadPhase::Idle:
+      return;
+
+    case DownloadPhase::RawFile: {
+      const int read = downloadFile_.read(buffer, kDownloadChunkBytes);
+      if (read <= 0) {
+        finishDownload(downloadSent_ == downloadSize_ ? "terminé" : "erreur de lecture");
+      } else if (!sendDownloadBytes(buffer, static_cast<size_t>(read))) {
+        finishDownload("connexion perdue");
+      }
+      return;
+    }
+
+    case DownloadPhase::ZipHeader: {
+      if (zipIndex_ >= zipEntries_.size()) {
+        zipCentralOffset_ = downloadSent_;
+        zipIndex_ = 0;
+        downloadPhase_ = DownloadPhase::ZipCentral;
+        return;
+      }
+      zip_stream::Entry& item = zipEntries_[zipIndex_];
+      downloadFile_ = SD.open(zipPaths_[zipIndex_], FILE_READ);
+      if (!downloadFile_) {
+        finishDownload("fichier disparu");
+        return;
+      }
+      item.offset = downloadSent_;
+      item.crc = 0;
+      zipFileSent_ = 0;
+      const std::vector<uint8_t> header = zip_stream::localHeader(item);
+      if (!sendDownloadBytes(header.data(), header.size())) {
+        finishDownload("connexion perdue");
+        return;
+      }
+      downloadPhase_ = DownloadPhase::ZipData;
+      return;
+    }
+
+    case DownloadPhase::ZipData: {
+      zip_stream::Entry& item = zipEntries_[zipIndex_];
+      if (zipFileSent_ >= item.size) {
+        // Taille annoncée atteinte (un fichier agrandi entre-temps est coupé: l'archive reste cohérente).
+        downloadFile_.close();
+        downloadFile_ = File();
+        const std::vector<uint8_t> descriptor = zip_stream::dataDescriptor(item);
+        if (!sendDownloadBytes(descriptor.data(), descriptor.size())) {
+          finishDownload("connexion perdue");
+          return;
+        }
+        ++zipIndex_;
+        downloadPhase_ = DownloadPhase::ZipHeader;
+        return;
+      }
+      const size_t wanted = std::min<size_t>(kDownloadChunkBytes, item.size - zipFileSent_);
+      const int read = downloadFile_.read(buffer, wanted);
+      if (read <= 0) {
+        finishDownload("erreur de lecture");
+        return;
+      }
+      item.crc = zip_stream::crc32Update(item.crc, buffer, static_cast<size_t>(read));
+      zipFileSent_ += read;
+      if (!sendDownloadBytes(buffer, static_cast<size_t>(read))) {
+        finishDownload("connexion perdue");
+      }
+      return;
+    }
+
+    case DownloadPhase::ZipCentral: {
+      std::vector<uint8_t> bytes;
+      if (zipIndex_ < zipEntries_.size()) {
+        bytes = zip_stream::centralHeader(zipEntries_[zipIndex_++]);
+      } else {
+        bytes = zip_stream::endOfCentralDirectory(zipEntries_.size(), downloadSent_ - zipCentralOffset_,
+                                                  zipCentralOffset_);
+      }
+      const bool last = zipIndex_ >= zipEntries_.size() && bytes.size() == 22;
+      if (!sendDownloadBytes(bytes.data(), bytes.size())) {
+        finishDownload("connexion perdue");
+      } else if (last) {
+        finishDownload(downloadSent_ == downloadSize_ ? "terminé" : "taille inattendue");
+      }
+      return;
+    }
+  }
+}
+
+void WebAdmin::finishDownload(const char* outcome) {
+  logLine("web", "Téléchargement %s (%u octets envoyés sur %u)", outcome, static_cast<unsigned>(downloadSent_),
+          static_cast<unsigned>(downloadSize_));
+  if (downloadFile_) {
+    downloadFile_.close();
+  }
+  downloadFile_ = File();
+  downloadClient_.stop();
+  downloadPhase_ = DownloadPhase::Idle;
+  zipEntries_.clear();
+  zipEntries_.shrink_to_fit();
+  zipPaths_.clear();
+  zipPaths_.shrink_to_fit();
+}
+
+void WebAdmin::cancelDownload() {
+  if (downloadPhase_ != DownloadPhase::Idle) {
+    finishDownload("interrompu: lecture d'une histoire");
+  }
 }
 
 void WebAdmin::refreshSdStats() {
@@ -1250,11 +1536,21 @@ void WebAdmin::handleRestore() {
     response["ok"] = true;
     response["path"] = sourcePath;
     response["restoredPath"] = resolvedPath;
+    removeEmptyTrashParents(sourcePath);
   }
 
   String payload;
   serializeJson(response, payload);
   server_.send(response["ok"] | false ? 200 : 400, "application/json", payload);
+}
+
+void WebAdmin::removeEmptyTrashParents(const String& trashPath) {
+  // rmdir() échoue sur un dossier non vide: on s'arrête au premier qui contient encore quelque chose.
+  for (const String& dir : library_paths::trashParents(trashPath)) {
+    if (!SD.rmdir(dir)) {
+      break;
+    }
+  }
 }
 
 void WebAdmin::handleRename() {
@@ -1569,6 +1865,8 @@ void WebAdmin::handlePurgeTrash() {
   } else {
     if (targetPath == kTrashRoot) {
       ensureDirectoryExists(kTrashRoot);
+    } else {
+      removeEmptyTrashParents(targetPath);
     }
     sdStatsValid_ = false;
     response["ok"] = true;

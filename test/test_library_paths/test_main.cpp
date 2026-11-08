@@ -155,6 +155,16 @@ void test_trash_items_go_back_where_they_were() {
   TEST_ASSERT_FALSE(isInTrash("/content/.trashed"));
 }
 
+void test_trash_parents_up_to_the_trash() {
+  const std::vector<String> parents = trashParents("/content/.trash/music/comptines/a.mp3");
+  TEST_ASSERT_EQUAL(2, parents.size());
+  assertPath("/content/.trash/music/comptines", parents[0]);
+  assertPath("/content/.trash/music", parents[1]);
+  TEST_ASSERT_EQUAL(0, trashParents("/content/.trash/a.mp3").size());
+  TEST_ASSERT_EQUAL(0, trashParents("/content/.trash").size());
+  TEST_ASSERT_EQUAL(0, trashParents("/content/music/a.mp3").size());
+}
+
 void test_moves_stay_in_the_library() {
   TEST_ASSERT_NULL(moveError("/content/music/a.mp3", "/content/stories"));
   TEST_ASSERT_NULL(moveError("/content/music", "/content/musique"));  // nom voisin, pas un sous-dossier
@@ -165,6 +175,14 @@ void test_moves_stay_in_the_library() {
   TEST_ASSERT_EQUAL_STRING("invalid_path", moveError("/content/a.mp3", ""));
   TEST_ASSERT_EQUAL_STRING("invalid_move_target", moveError("/content/music", "/content/music"));
   TEST_ASSERT_EQUAL_STRING("invalid_move_target", moveError("/content/music", "/content/music/comptines"));
+}
+
+void test_download_names_keep_accents() {
+  assertPath("attachment; filename=\"01-intro.mp3\"; filename*=UTF-8''01-intro.mp3", contentDisposition("01-intro.mp3"));
+  // Accent (é = C3 A9), espace et guillemets: rien ne casse l'en-tête.
+  assertPath("attachment; filename=\"F_e _a_.mp3\"; filename*=UTF-8''F%C3%A9e%20%22a%22.mp3",
+             contentDisposition("Fée \"a\".mp3"));
+  assertPath("attachment; filename=\"fichier\"; filename*=UTF-8''", contentDisposition(""));
 }
 
 int main() {
@@ -184,6 +202,8 @@ int main() {
   RUN_TEST(test_trash_keeps_the_library_tree);
   RUN_TEST(test_root_and_trash_cannot_be_trashed);
   RUN_TEST(test_trash_items_go_back_where_they_were);
+  RUN_TEST(test_trash_parents_up_to_the_trash);
   RUN_TEST(test_moves_stay_in_the_library);
+  RUN_TEST(test_download_names_keep_accents);
   return UNITY_END();
 }
