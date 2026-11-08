@@ -169,6 +169,13 @@ void ConfigStore::writeBindings(JsonArray array, const std::vector<CardBinding>&
     item["resumeTrackIndex"] = binding.resumeTrackIndex;
     item["resumeMs"] = binding.resumeMs;
     item["resumeByte"] = binding.resumeByte;
+    // Écrits seulement s'ils sont choisis: toutes les cartes tiennent dans une seule valeur NVS.
+    if (!binding.emoji.isEmpty()) {
+      item["emoji"] = binding.emoji;
+    }
+    if (!binding.color.isEmpty()) {
+      item["color"] = binding.color;
+    }
   }
 }
 
@@ -183,9 +190,33 @@ std::vector<CardBinding> ConfigStore::readBindings(JsonArrayConst array) {
     binding.resumeTrackIndex = item["resumeTrackIndex"] | 0;
     binding.resumeMs = item["resumeMs"] | 0;
     binding.resumeByte = item["resumeByte"] | 0;
+    binding.emoji = cardEmoji(String(static_cast<const char*>(item["emoji"] | "")));
+    binding.color = cardColor(String(static_cast<const char*>(item["color"] | "")));
     if (!binding.uid.isEmpty()) {
       bindings.push_back(binding);
     }
   }
   return bindings;
+}
+
+String ConfigStore::cardColor(const String& value) {
+  for (const char* color : {"blue", "green", "amber", "red", "purple", "pink", "teal"}) {
+    if (value == color) {
+      return value;
+    }
+  }
+  return "";
+}
+
+String ConfigStore::cardEmoji(const String& value) {
+  if (value.length() > 16) {
+    return "";
+  }
+  for (size_t index = 0; index < value.length(); ++index) {
+    const uint8_t c = static_cast<uint8_t>(value[index]);
+    if (c < 0x20 || c == 0x7F || c == '<' || c == '>' || c == '"' || c == '&') {
+      return "";
+    }
+  }
+  return value;
 }

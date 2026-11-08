@@ -107,8 +107,10 @@
               <div id="now-sub" class="muted"></div>
             </div>
           </div>
+          <div id="now-progress" class="progress now-progress" hidden><div id="now-progress-bar" style="width: 0%"></div></div>
           <div class="meta-row">
             <span id="now-position"></span>
+            <span id="now-duration"></span>
           </div>
         </div>
 
@@ -136,6 +138,7 @@
             <h2>Tes cartes</h2>
             <span id="cards-count" class="small"></span>
           </div>
+          <input id="cards-search" type="search" placeholder="Rechercher une carte" style="margin-bottom: 12px" hidden />
           <div id="tiles" class="tiles"></div>
         </div>
 
@@ -352,6 +355,14 @@
             Nom
             <input id="card-label" type="text" maxlength="40" />
           </label>
+          <div class="stack" style="gap: 6px">
+            <div class="group-title">Apparence</div>
+            <div class="look-row">
+              <input id="card-emoji" type="text" placeholder="🦊" aria-label="Emoji de la carte" autocomplete="off" />
+              <div id="card-colors" class="swatches" role="group" aria-label="Couleur de la carte"></div>
+            </div>
+            <span class="small muted">Un emoji et une couleur pour reconnaître la carte d'un coup d'œil.</span>
+          </div>
           <div class="stack" style="gap: 6px">
             <div class="group-title">Contenu lu</div>
             <div class="list">

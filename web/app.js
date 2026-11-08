@@ -724,7 +724,8 @@ function renderHome() {
   // Carte SD absente ou illisible: rien à gérer; le bandeau du haut le dit et propose le formatage.
   $("open-files").hidden = Boolean(status && status.sdReady === false);
   if (status && status.sdTotalBytes) {
-    $("sd-summary").textContent = `${fmtBytes(status.sdFreeBytes)} libres sur ${fmtBytes(status.sdTotalBytes)}`;
+    // L'espace utilisé: « 32 Go libres sur 32 Go » ne disait rien d'une carte presque vide (arrondi).
+    $("sd-summary").textContent = `${fmtBytes(status.sdTotalBytes - status.sdFreeBytes)} utilisés sur ${fmtBytes(status.sdTotalBytes)}`;
   } else {
     $("sd-summary").textContent = "";
   }
@@ -746,6 +747,11 @@ function renderNowPlaying() {
   const track = status.activeTrackCount > 1 ? `Piste ${status.activeTrackIndex + 1}/${status.activeTrackCount} · ` : "";
   $("now-sub").textContent = `${track}${prettyName(status.activeMediaPath)}`;
   $("now-position").textContent = fmtClock(status.activePositionMs);
+  // Durée connue de la boîte une fois la piste ouverte (absente des anciens firmwares: pas de barre).
+  const duration = status.activeDurationMs || 0;
+  $("now-progress").hidden = !duration;
+  $("now-duration").textContent = duration ? fmtClock(duration) : "";
+  if (duration) $("now-progress-bar").style.width = `${Math.min(100, (status.activePositionMs / duration) * 100)}%`;
 }
 
 // ---------- Volume ----------
@@ -815,24 +821,40 @@ function bookmarkText(binding) {
   return `Reprend ${track}à ${fmtClock(binding.resumeMs)}`;
 }
 
+// Recherche proposée au-delà de quelques cartes.
+const CARDS_SEARCH_FROM = 9;
+
 function renderTiles() {
   const list = bindings();
   const activeUid = app.status && app.status.activeCardUid;
   $("cards-count").textContent = list.length ? plural(list.length, "carte", "cartes") : "";
+  const search = $("cards-search");
+  search.hidden = list.length < CARDS_SEARCH_FROM;
+  if (search.hidden) search.value = "";
+  const shown = filterCards(list, search.value);
 
-  const tiles = list.map((binding, index) => {
+  const tiles = shown.map((binding) => {
+    const index = list.indexOf(binding);
     const playing = binding.uid === activeUid && app.status.state === "playing";
     const title = binding.label || prettyName(binding.mediaPath) || binding.uid;
+    // Emoji choisi, sinon l'icône (lecture ou livre), dans la couleur de la carte.
+    const face = binding.emoji ? esc(binding.emoji) : icon(playing ? "play" : "book");
+    const tone = binding.color || (playing && !binding.emoji ? "green" : "blue");
     return `
       <button class="tile${playing ? " playing" : ""}" type="button" data-card="${index}">
-        <span class="tile-icon ${playing ? "tone-green" : "tone-blue"}">${icon(playing ? "play" : "book")}</span>
+        <span class="tile-icon tone-${esc(tone)}">${face}</span>
         <span class="tile-title">${esc(title)}</span>
         <span class="small">${playing ? "En lecture" : esc(bookmarkText(binding))}</span>
       </button>`;
   });
+  if (search.value && !shown.length) {
+    tiles.push(`<div class="empty">Aucune carte ne correspond.</div>`);
+  }
   tiles.push(`<button class="tile add" type="button" data-add-card>${icon("plus")}Ajouter une carte</button>`);
   setHtml($("tiles"), tiles.join(""));
 }
+
+$("cards-search").addEventListener("input", renderTiles);
 
 $("tiles").addEventListener("click", (event) => {
   const tile = event.target.closest("[data-card], [data-add-card]");
@@ -1086,7 +1108,24 @@ $("assign-dialog").addEventListener("close", () => {
 
 // ---------- Fiche carte ----------
 
-const editing = { index: -1, folder: "", resetBookmark: false };
+const editing = { index: -1, folder: "", resetBookmark: false, color: "" };
+
+function renderCardColors() {
+  setHtml(
+    $("card-colors"),
+    CARD_COLORS.map(
+      ([value, name]) =>
+        `<button class="swatch tone-${value}" type="button" data-color="${value}" aria-label="${name}" aria-pressed="${(editing.color || "blue") === value}" style="background: var(--${value})"></button>`,
+    ).join(""),
+  );
+}
+
+$("card-colors").addEventListener("click", (event) => {
+  const swatch = event.target.closest("[data-color]");
+  if (!swatch) return;
+  editing.color = swatch.dataset.color === "blue" ? "" : swatch.dataset.color;
+  renderCardColors();
+});
 
 function openCard(index) {
   const binding = bindings()[index];
@@ -1097,6 +1136,9 @@ function openCard(index) {
   editing.resetBookmark = false;
   $("card-label").value = binding.label || "";
   $("card-label").placeholder = prettyName(binding.mediaPath);
+  $("card-emoji").value = binding.emoji || "";
+  editing.color = binding.color || "";
+  renderCardColors();
   $("card-uid").textContent = binding.uid;
   renderCardDialog(binding);
   openDialog($("card-dialog"));
@@ -1125,12 +1167,20 @@ $("card-change-folder").addEventListener("click", async () => {
   renderCardDialog(findBinding(editing.uid) || {});
 });
 
-$("card-save").addEventListener("click", async () => {
+$("card-save").addEventListener("click", async (event) => {
   const label = $("card-label").value.trim();
+  const emoji = cardEmoji($("card-emoji").value);
+  if ($("card-emoji").value.trim() && !emoji) {
+    event.preventDefault();
+    toast("Emoji trop long : un ou deux emojis, ou quelques lettres.", true);
+    return;
+  }
   const result = await saveBindings((list) => {
     const binding = list.find((item) => item.uid === editing.uid);
     if (!binding) return;
     binding.label = label;
+    binding.emoji = emoji;
+    binding.color = editing.color;
     binding.mediaPath = editing.folder;
     if (editing.resetBookmark) {
       binding.resumeTrackIndex = 0;

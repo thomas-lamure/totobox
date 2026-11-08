@@ -365,6 +365,7 @@ void WebAdmin::handleStatus() {
   doc["activeMediaPath"] = runtime_.activeMediaPath;
   doc["activeTrackIndex"] = runtime_.activeTrackIndex;
   doc["activePositionMs"] = runtime_.activePositionMs;
+  doc["activeDurationMs"] = runtime_.activeDurationMs;
   doc["activeTrackCount"] = runtime_.activeTrackCount;
   doc["audioPlaying"] = runtime_.audioPlaying;
   // Lecture arrêtée depuis Home Assistant, carte toujours posée: la page affiche « Arrêtée ».
@@ -550,16 +551,9 @@ void WebAdmin::handlePostBindings() {
     return;
   }
 
-  std::vector<CardBinding> next;
-  for (JsonObject item : doc.as<JsonArray>()) {
-    CardBinding binding;
-    binding.uid = String(static_cast<const char*>(item["uid"] | ""));
-    binding.label = String(static_cast<const char*>(item["label"] | ""));
-    binding.mediaPath = String(static_cast<const char*>(item["mediaPath"] | ""));
-    binding.mode = playbackModeFromString(String(static_cast<const char*>(item["mode"] | "sd_local")));
-    binding.resumeTrackIndex = item["resumeTrackIndex"] | 0;
-    binding.resumeMs = item["resumeMs"] | 0;
-    binding.resumeByte = item["resumeByte"] | 0;
+  // Même lecture que la NVS et la sauvegarde sur carte SD (emoji et couleur vérifiés, entrées sans UID ignorées).
+  std::vector<CardBinding> next = ConfigStore::readBindings(doc.as<JsonArrayConst>());
+  for (CardBinding& binding : next) {
     // Marque-page remis au début (ou page plus ancienne qui ignore l'octet): pas d'octet orphelin.
     if (binding.resumeMs == 0 && binding.resumeTrackIndex == 0) {
       binding.resumeByte = 0;
@@ -567,9 +561,6 @@ void WebAdmin::handlePostBindings() {
     if (access_lock::isLockCard(config_, binding.uid)) {
       server_.send(400, "application/json", "{\"ok\":false,\"error\":\"lock_card\"}");
       return;
-    }
-    if (!binding.uid.isEmpty()) {
-      next.push_back(binding);
     }
   }
   bindings_ = next;

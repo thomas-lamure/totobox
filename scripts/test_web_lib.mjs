@@ -12,12 +12,13 @@ import vm from "node:vm";
 const NAMES = [
   "LIBRARY_ROOT", "HOSTNAME_PATTERN", "esc", "baseName", "relPath", "prettyName", "fmtClock", "fmtDuration",
   "fmtBytes", "plural", "isAudioPath", "parentDir", "safeFolderName", "canMoveInto", "allFolders",
-  "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths", "originalPath", "trashItems", "folderDownloadPlan", "compareVersions", "parseRelease", "plainNotes",
+  "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths", "originalPath", "trashItems", "folderDownloadPlan", "cardEmoji", "filterCards", "CARD_COLORS", "compareVersions", "parseRelease", "plainNotes",
   "mp3FrameHeader", "firstMp3Frame", "applyMp3Gain", "mp3Crc", "readBits", "writeBits", "kWeighting", "measureLevels", "mergeLevels",
   "gatedLoudness", "mp3GainSteps", "fmtGain",
 ];
 const source = readFileSync(new URL("../web/lib.js", import.meta.url), "utf8");
-const lib = vm.runInNewContext(`${source}\n;({ ${NAMES.join(", ")} })`, {});
+// TextEncoder: présent dans tous les navigateurs, absent du contexte isolé.
+const lib = vm.runInNewContext(`${source}\n;({ ${NAMES.join(", ")} })`, { TextEncoder });
 
 test("le texte est échappé avant d'entrer dans le HTML", () => {
   assert.equal(lib.esc(`<img src=x onerror="alert('x')">&`), "&lt;img src=x onerror=&quot;alert(&#39;x&#39;)&quot;&gt;&amp;");
@@ -405,4 +406,28 @@ test("téléchargement d'un dossier: même arborescence que sur la carte", () =>
     "totobox/music/comptines/a.mp3", "totobox/music/b.mp3", "totobox/c.mp3",
   ]);
   assert.deepEqual(plan("/content/absent"), []);
+});
+
+test("apparence des cartes: même contrôle que la boîte", () => {
+  assert.equal(lib.cardEmoji(" 🦊 "), "🦊");
+  assert.equal(lib.cardEmoji("🐻‍❄️"), "🐻‍❄️");
+  assert.equal(lib.cardEmoji("AB"), "AB");
+  assert.equal(lib.cardEmoji("<b>"), "");
+  assert.equal(lib.cardEmoji("12345678901234567"), "");
+  assert.equal(lib.cardEmoji(""), "");
+  assert.deepEqual([...lib.CARD_COLORS.map(([value]) => value)], ["blue", "green", "amber", "red", "purple", "pink", "teal"]);
+});
+
+test("recherche de cartes sans accents ni casse", () => {
+  const list = [
+    { label: "Le Petit Prince", mediaPath: "/content/stories/petit-prince" },
+    { label: "", mediaPath: "/content/music/comptines-de-noel" },
+    { label: "Fée Clochette", mediaPath: "/content/x" },
+  ];
+  const labels = (query) => [...lib.filterCards(list, query)].map((item) => item.label || item.mediaPath);
+  assert.equal(labels("").length, 3);
+  assert.deepEqual(labels("prince"), ["Le Petit Prince"]);
+  assert.deepEqual(labels("NOEL"), ["/content/music/comptines-de-noel"]);
+  assert.deepEqual(labels("fee"), ["Fée Clochette"]);
+  assert.deepEqual(labels("zzz"), []);
 });

@@ -41,7 +41,7 @@ Colonnes « Verrouillée » et « En lecture »: la route est-elle servie? Elles
 
 - `features`: fonctions compilées, `onlineUpdate` (mise à jour en ligne) et `homeAssistant`; toutes deux à `false` dans la variante hors ligne (voir [development.md](development.md#variante-hors-ligne)), où `updateRepo` est vide, `homeAssistant` et `update` absents, et `POST /api/update` répond `404 not_available`. Absent sur les firmwares d'avant 1.3.0: tout est présent;
 - `firmwareVersion` (version publiée, voir [CHANGELOG.md](../CHANGELOG.md)) et `firmwareBuild` (commit compilé, `-dirty` si modifié);
-- `state`, `audioPlaying`, `stoppedRemotely` (lecture arrêtée depuis Home Assistant, carte toujours posée: `state` vaut `paused`), `activeCardUid`, `activeCardLabel`, `activeMediaPath`, `activeTrackIndex`, `activeTrackCount`, `activePositionMs`;
+- `state`, `audioPlaying`, `stoppedRemotely` (lecture arrêtée depuis Home Assistant, carte toujours posée: `state` vaut `paused`), `activeCardUid`, `activeCardLabel`, `activeMediaPath`, `activeTrackIndex`, `activeTrackCount`, `activePositionMs`, `activeDurationMs` (durée de la piste en cours, 0 si pas encore connue);
 - `currentVolume`, `volumeMin`, `volumeMax`;
 - `lockEnabled`, `locked`, `lastUnknownCardUid` (vide si verrouillée);
 - `sdState` (`absent`, `unreadable`: présente mais pas en FAT32, `ready`) et l'espace SD;

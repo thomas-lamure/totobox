@@ -627,6 +627,7 @@ void loop() {
   runtime.activeTrackIndex = audio.currentTrackIndex();
   runtime.activeTrackCount = audio.trackCount();
   runtime.activePositionMs = audio.currentPositionMs();
+  runtime.activeDurationMs = audio.currentDurationMs();
   runtime.audioPlaying = audio.isPlaying();
   if (runtime.audioPlaying || updateActive) {
     power.noteActivity(runtime);

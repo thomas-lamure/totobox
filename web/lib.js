@@ -153,6 +153,30 @@ function trashItems(trashEntries, libraryEntries) {
   return items;
 }
 
+// ---------- Apparence des cartes ----------
+
+// Palette proposée (classes tone-*), la même que ConfigStore::cardColor. Vide = bleu.
+const CARD_COLORS = [
+  ["blue", "Bleu"], ["green", "Vert"], ["amber", "Orange"], ["red", "Rouge"],
+  ["purple", "Violet"], ["pink", "Rose"], ["teal", "Turquoise"],
+];
+
+// Emoji ou court texte de la tuile, vérifié comme ConfigStore::cardEmoji: 16 octets UTF-8 au plus, sans caractère
+// de contrôle ni « < > " & ». Rend "" sinon.
+function cardEmoji(value) {
+  const text = String(value || "").trim();
+  if (new TextEncoder().encode(text).length > 16) return "";
+  return /[\u0000-\u001f\u007f<>"&]/.test(text) ? "" : text;
+}
+
+// Recherche dans les cartes (nom, contenu), sans tenir compte des accents ni de la casse.
+function filterCards(list, query) {
+  const fold = (text) => String(text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const wanted = fold(query).trim();
+  if (!wanted) return list;
+  return list.filter((binding) => fold(`${binding.label} ${prettyName(binding.mediaPath)} ${binding.mediaPath}`).includes(wanted));
+}
+
 function normalizeHostname(value) {
   return value.trim().toLowerCase();
 }

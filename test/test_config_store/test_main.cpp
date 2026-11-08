@@ -256,6 +256,8 @@ void test_bindings_round_trip() {
   saved[0].resumeTrackIndex = 2;
   saved[0].resumeMs = 76000;
   saved[0].resumeByte = 1234567;
+  saved[0].emoji = "🦊";
+  saved[0].color = "amber";
   saved[1].uid = "04C0FFEE99";
   saved[1].label = "Chanson";
   saved[1].mediaPath = "/content/music/chanson.mp3";
@@ -273,6 +275,10 @@ void test_bindings_round_trip() {
   TEST_ASSERT_EQUAL_UINT16(2, loaded[0].resumeTrackIndex);
   TEST_ASSERT_EQUAL_UINT32(76000, loaded[0].resumeMs);
   TEST_ASSERT_EQUAL_UINT32(1234567, loaded[0].resumeByte);
+  TEST_ASSERT_EQUAL_STRING("🦊", loaded[0].emoji.c_str());
+  TEST_ASSERT_EQUAL_STRING("amber", loaded[0].color.c_str());
+  TEST_ASSERT_TRUE(loaded[1].emoji.isEmpty());
+  TEST_ASSERT_TRUE(loaded[1].color.isEmpty());
   TEST_ASSERT_EQUAL_UINT32(0, loaded[1].resumeByte);
   TEST_ASSERT_TRUE(loaded[0].mode == PlaybackMode::SdLocal);
   TEST_ASSERT_EQUAL_STRING("/content/music/chanson.mp3", loaded[1].mediaPath.c_str());
@@ -300,6 +306,24 @@ void test_bookmark_without_byte_is_still_loaded() {
   TEST_ASSERT_EQUAL_UINT32(0, loaded[0].resumeByte);
 }
 
+void test_card_look_is_checked() {
+  TEST_ASSERT_EQUAL_STRING("teal", ConfigStore::cardColor("teal").c_str());
+  TEST_ASSERT_EQUAL_STRING("", ConfigStore::cardColor("#ff0000").c_str());
+  TEST_ASSERT_EQUAL_STRING("", ConfigStore::cardColor("Blue").c_str());
+  TEST_ASSERT_EQUAL_STRING("🐻‍❄️", ConfigStore::cardEmoji("🐻‍❄️").c_str());  // emoji composé, 13 octets
+  TEST_ASSERT_EQUAL_STRING("", ConfigStore::cardEmoji("<img src=x>").c_str());
+  TEST_ASSERT_EQUAL_STRING("", ConfigStore::cardEmoji("12345678901234567").c_str());
+  TEST_ASSERT_EQUAL_STRING("", ConfigStore::cardEmoji("a\nb").c_str());
+  // Valeurs invalides lues depuis la NVS ou une sauvegarde: carte par défaut, sans perdre le reste.
+  writeRaw("bindings", R"([{"uid":"AB12","mediaPath":"/content/b","emoji":"<b>","color":"rouge"}])");
+  ConfigStore store;
+  store.begin();
+  const std::vector<CardBinding> loaded = store.loadBindings();
+  TEST_ASSERT_EQUAL_UINT32(1, loaded.size());
+  TEST_ASSERT_TRUE(loaded[0].emoji.isEmpty());
+  TEST_ASSERT_TRUE(loaded[0].color.isEmpty());
+}
+
 void test_corrupted_bindings_give_empty_catalog() {
   writeRaw("bindings", R"({"pas":"une liste"})");
   ConfigStore store;
@@ -323,6 +347,7 @@ int main() {
   RUN_TEST(test_bindings_round_trip);
   RUN_TEST(test_bindings_without_uid_are_skipped);
   RUN_TEST(test_bookmark_without_byte_is_still_loaded);
+  RUN_TEST(test_card_look_is_checked);
   RUN_TEST(test_corrupted_bindings_give_empty_catalog);
   return UNITY_END();
 }

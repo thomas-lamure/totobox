@@ -52,6 +52,10 @@ struct CardBinding {
   // marque-pages), et en octets dans le fichier (reprise exacte, y compris en MP3 à débit variable). 0 = inconnu.
   uint32_t resumeMs = 0;
   uint32_t resumeByte = 0;
+  // Apparence dans la page (vide = par défaut): emoji affiché sur la tuile, et couleur de la palette de la page
+  // (ConfigStore::cardColor). Sans effet sur la lecture.
+  String emoji;
+  String color;
 };
 
 // Carte maîtresse: déverrouille les réglages (un parent = une carte).
@@ -125,6 +129,7 @@ struct RuntimeState {
   String activeMediaPath;
   uint16_t activeTrackIndex = 0;
   uint32_t activePositionMs = 0;
+  uint32_t activeDurationMs = 0;
   uint32_t lastCardSeenMs = 0;
   uint32_t lastVolumeOverlayMs = 0;
   uint32_t volumeOverlayDurationMs = 0;  // jauge du volume ou confirmation de déverrouillage

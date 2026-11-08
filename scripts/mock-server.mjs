@@ -329,6 +329,13 @@ function unseal(body) {
   }
 }
 
+// Durée de la piste en cours, estimée comme la lib audio pour un MP3 à 128 kbit/s.
+function activeDurationMs(binding) {
+  if (!binding || !runtime.activeTrackCount) return 0;
+  const track = playlist(binding.mediaPath)[runtime.activeTrackIndex];
+  return track ? Math.round((files.get(track).size * 8) / 128) : 0;
+}
+
 // ---------- Réponses ----------
 
 function status() {
@@ -361,6 +368,7 @@ function status() {
     activeMediaPath: active ? active.mediaPath : "",
     activeTrackIndex: runtime.activeTrackIndex,
     activePositionMs: runtime.activePositionMs,
+    activeDurationMs: activeDurationMs(active),
     activeTrackCount: runtime.activeTrackCount,
     audioPlaying: audioPlaying(),
     stoppedRemotely: runtime.stoppedRemotely,
@@ -500,6 +508,9 @@ const routes = [
     bindings = body.filter((item) => item.uid).map((item) => ({
       uid: item.uid, label: item.label || "", mediaPath: item.mediaPath || "", mode: item.mode || "sd_local",
       resumeTrackIndex: item.resumeTrackIndex || 0, resumeMs: item.resumeMs || 0, resumeByte: item.resumeByte || 0,
+      // Comme ConfigStore::cardEmoji et cardColor: valeur invalide remise à vide.
+      emoji: Buffer.byteLength(String(item.emoji || "")) <= 16 && !/[\u0000-\u001f\u007f<>"&]/.test(item.emoji || "") ? String(item.emoji || "") : "",
+      color: ["blue", "green", "amber", "red", "purple", "pink", "teal"].includes(item.color) ? item.color : "",
     }));
     if (bindings.some((item) => item.uid === runtime.lastUnknownCardUid)) runtime.lastUnknownCardUid = "";
     return [200, configJson()];

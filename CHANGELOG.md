@@ -4,6 +4,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+### Page web
+
+- Lecture en cours: barre de progression et durée de la piste (`activeDurationMs` dans `/api/status`).
+- Cartes: un emoji et une couleur par carte (fiche de la carte > Apparence), affichés sur la tuile; enregistrés avec la carte, y compris dans la sauvegarde sur la carte SD. Une recherche apparaît à partir de neuf cartes.
+- Espace de la carte SD: l'accueil affiche l'espace utilisé (« 18 Mo utilisés sur 32 Go »); l'espace libre arrondi donnait « 32 Go libres sur 32 Go » sur une carte presque vide.
+
 ## 1.4.1 - 2026-11-08
 
 ### Firmware

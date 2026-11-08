@@ -323,6 +323,18 @@ uint32_t AudioService::currentPositionMs() {
   return positionMsLocked();
 }
 
+uint32_t AudioService::currentDurationMs() {
+  Lock lock(mutex_);
+  // Connue de la lib une fois l'en-tête lu (estimée d'après le débit pour un MP3 sans en-tête Xing).
+  if (playing_ && audio_->isRunning()) {
+    const uint32_t seconds = audio_->getAudioFileDuration();
+    if (seconds > 0) {
+      durationMs_ = seconds * 1000;
+    }
+  }
+  return durationMs_;
+}
+
 uint32_t AudioService::positionMsLocked() {
   if (!playing_) {
     return pausedAtMs_;
@@ -433,6 +445,7 @@ bool AudioService::startCurrentTrack(uint32_t resumeMs, uint32_t resumeByte) {
   } else if (plan.unsupported) {
     logLine("audio", "Reprise impossible pour ce format: lecture depuis le début");
   }
+  durationMs_ = 0;
   playing_ = audio_->connecttoFS(SD, currentPath_.c_str(), plan.startByte);
   if (!playing_) {
     logLine("audio", "Échec du démarrage de %s", currentPath_.c_str());

@@ -37,6 +37,8 @@ class AudioService {
   bool formatSd();
   void setVolumePercent(uint8_t percent);
   uint32_t currentPositionMs();
+  // Durée de la piste en cours (0 si inconnue), gardée pendant une pause pour la barre de progression de la page.
+  uint32_t currentDurationMs();
   String currentPath() const;
   uint16_t currentTrackIndex() const;
   uint16_t trackCount() const;
@@ -91,6 +93,7 @@ class AudioService {
   bool playing_ = false;
   bool playbackFinished_ = false;
   uint32_t pausedAtMs_ = 0;
+  uint32_t durationMs_ = 0;
   uint16_t pendingResumeSec_ = 0;
   // Reprise par octet: l'horloge de la lib repart de 0 (débit encore inconnu au moment du saut); la position
   // est donc comptée depuis le signet, à partir de l'horloge relevée une fois la piste lancée.

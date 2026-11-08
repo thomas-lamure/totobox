@@ -21,8 +21,15 @@ class ConfigStore {
 
   // Format JSON des associations, partagé avec la sauvegarde sur carte SD (card_backup).
   static void writeBindings(JsonArray array, const std::vector<CardBinding>& bindings);
-  // Les entrées sans UID sont ignorées.
+  // Les entrées sans UID sont ignorées; emoji et couleur invalides sont remis à vide.
   static std::vector<CardBinding> readBindings(JsonArrayConst array);
+
+  // Couleur de carte de la palette de la page ("blue", "green", "amber", "red", "purple", "pink", "teal"),
+  // sinon "" (couleur par défaut).
+  static String cardColor(const String& value);
+  // Emoji (ou court texte) de la tuile: 16 octets UTF-8 au plus, sans caractère de contrôle ni « < > " & »,
+  // sinon "".
+  static String cardEmoji(const String& value);
 
  private:
   bool hasStoredBindings();
