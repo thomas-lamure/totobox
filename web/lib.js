@@ -661,3 +661,13 @@ function trackOrderPlan(names) {
   });
   return { renames, swap };
 }
+
+// Défilement automatique pendant un glissement: vitesse (pixels par seconde, négative vers le haut) quand le pointeur
+// approche à moins de `zone` pixels du bord haut ou bas de la zone qui défile [top, bottom], jusqu'à `max` au bord
+// et au-delà. 0 ailleurs.
+function dragScrollSpeed(y, top, bottom, zone = 56, max = 960) {
+  if (bottom - top <= 2 * zone) zone = (bottom - top) / 4;
+  if (y < top + zone) return -Math.round(max * Math.min(1, (top + zone - y) / zone));
+  if (y > bottom - zone) return Math.round(max * Math.min(1, (y - (bottom - zone)) / zone));
+  return 0;
+}

@@ -95,7 +95,7 @@ Un fichier ou un dossier supprimé va dans la corbeille, qui reprend les dossier
 
 ### Ordre des pistes
 
-La boîte lit les pistes d'un dossier par ordre alphabétique de leur nom. Écran Fichiers, dans le dossier > « Ordre des pistes »: on range les pistes en les glissant par la poignée (⠿) ou avec les flèches, puis « Enregistrer ». La page renomme alors les fichiers avec un numéro devant (`01-`, `02-`…); si les noms ont déjà un numéro, elle garde le même style (`01_`, `1 - `, `001.`…) et remplace seulement le numéro. Les cartes associées à une piste suivent son nouveau nom, et le signet d'une carte associée au dossier reste sur la même piste.
+La boîte lit les pistes d'un dossier par ordre alphabétique de leur nom. Écran Fichiers, dans le dossier > « Ordre des pistes »: on range les pistes en les glissant par la poignée (⠿) ou avec les flèches, puis « Enregistrer ». Dans un long dossier, une piste glissée près du haut ou du bas de la fenêtre fait défiler la liste. La page renomme alors les fichiers avec un numéro devant (`01-`, `02-`…); si les noms ont déjà un numéro, elle garde le même style (`01_`, `1 - `, `001.`…) et remplace seulement le numéro. Les cartes associées à une piste suivent son nouveau nom, et le signet d'une carte associée au dossier reste sur la même piste.
 
 ### Télécharger un dossier
 

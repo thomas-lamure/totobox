@@ -14,7 +14,7 @@ const NAMES = [
   "fmtBytes", "plural", "isAudioPath", "parentDir", "safeFolderName", "canMoveInto", "allFolders",
   "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths", "originalPath", "trashItems", "trashListing", "restoreTargets", "folderDownloadPlan", "cardEmoji", "filterCards", "CARD_COLORS", "compareVersions", "parseRelease", "plainNotes",
   "mp3FrameHeader", "firstMp3Frame", "applyMp3Gain", "mp3Crc", "readBits", "writeBits", "kWeighting", "measureLevels", "mergeLevels",
-  "gatedLoudness", "mp3GainSteps", "fmtGain", "compareTrackNames", "trackPrefix", "trackOrderPlan",
+  "gatedLoudness", "mp3GainSteps", "fmtGain", "compareTrackNames", "trackPrefix", "trackOrderPlan", "dragScrollSpeed",
 ];
 const source = readFileSync(new URL("../web/lib.js", import.meta.url), "utf8");
 // TextEncoder: présent dans tous les navigateurs, absent du contexte isolé.
@@ -492,4 +492,20 @@ test("corbeille en dossiers: rangement, dossier supprimé, fichier", () => {
   assert.deepEqual([...lib.restoreTargets(trash, library, ["/content/.trash/stories", "/content/.trash/b.mp3"])],
     ["/content/.trash/stories/a.mp3", "/content/.trash/stories/vieux", "/content/.trash/b.mp3"]);
   assert.deepEqual([...lib.restoreTargets(trash, library, ["/content/.trash/stories/vieux/2.mp3"])], ["/content/.trash/stories/vieux/2.mp3"]);
+});
+
+test("défilement automatique pendant un glissement", () => {
+  // Zone qui défile de 100 à 600 px, bande de 56 px à chaque bord.
+  assert.equal(lib.dragScrollSpeed(350, 100, 600), 0);
+  assert.equal(lib.dragScrollSpeed(156, 100, 600), 0);
+  assert.equal(lib.dragScrollSpeed(544, 100, 600), 0);
+  assert.equal(lib.dragScrollSpeed(128, 100, 600), -480);
+  assert.equal(lib.dragScrollSpeed(572, 100, 600), 480);
+  assert.equal(lib.dragScrollSpeed(100, 100, 600), -960);
+  // Au-delà du bord (pointeur sur l'en-tête ou le pied de la fenêtre): vitesse maximale.
+  assert.equal(lib.dragScrollSpeed(20, 100, 600), -960);
+  assert.equal(lib.dragScrollSpeed(900, 100, 600), 960);
+  // Zone basse: bandes réduites au quart, le milieu reste immobile.
+  assert.equal(lib.dragScrollSpeed(150, 100, 200), 0);
+  assert.equal(lib.dragScrollSpeed(100, 100, 200), -960);
 });

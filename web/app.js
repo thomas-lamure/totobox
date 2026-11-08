@@ -2073,21 +2073,24 @@ $("order-list").addEventListener("click", (event) => {
 
 // Glisser par la poignée, au doigt comme à la souris: la ligne est déplacée dans la liste pendant le geste.
 // Suivi sur window: déplacer la ligne dans la page lui fait perdre la capture du pointeur.
+// Près du haut ou du bas de la fenêtre, la liste défile d'elle-même (dragScrollSpeed) pour emmener la piste loin.
 $("order-list").addEventListener("pointerdown", (event) => {
   const handle = event.target.closest(".order-handle");
   if (!handle) return;
   event.preventDefault();
   const row = handle.closest(".order-row");
   const list = $("order-list");
+  const scroller = list.closest(".sheet-body");
   const pointerId = event.pointerId;
+  let pointerY = event.clientY;
+  let frame = 0;
+  let lastFrame = 0;
   row.classList.add("dragging");
-  const onMove = (move) => {
-    if (move.pointerId !== pointerId) return;
-    move.preventDefault();
+  const place = () => {
     const others = [...list.querySelectorAll(".order-row")].filter((item) => item !== row);
     const before = others.find((item) => {
       const box = item.getBoundingClientRect();
-      return move.clientY < box.top + box.height / 2;
+      return pointerY < box.top + box.height / 2;
     });
     if (before) {
       if (row.nextElementSibling !== before) list.insertBefore(row, before);
@@ -2096,13 +2099,43 @@ $("order-list").addEventListener("pointerdown", (event) => {
     }
     renderOrderNumbers();
   };
+  // Vitesse en pixels par seconde: le même défilement à 60 Hz qu'à 120 Hz. Une pause de l'affichage (onglet
+  // caché) ne fait pas sauter la liste d'un coup.
+  const autoScroll = (now) => {
+    frame = 0;
+    const elapsed = lastFrame ? Math.min(100, now - lastFrame) : 16;
+    lastFrame = now;
+    const box = scroller.getBoundingClientRect();
+    const step = Math.round((dragScrollSpeed(pointerY, box.top, box.bottom) * elapsed) / 1000);
+    const previous = scroller.scrollTop;
+    if (step) scroller.scrollTop += step;
+    if (scroller.scrollTop === previous) {
+      lastFrame = 0;
+      return;
+    }
+    place();
+    frame = requestAnimationFrame(autoScroll);
+  };
+  const onMove = (move) => {
+    if (move.pointerId !== pointerId) return;
+    move.preventDefault();
+    pointerY = move.clientY;
+    place();
+    if (!frame) frame = requestAnimationFrame(autoScroll);
+  };
+  // Molette pendant le glissement: la ligne suit le pointeur dans la liste qui a défilé.
+  const onScroll = () => place();
   const onEnd = (end) => {
     if (end.pointerId !== pointerId) return;
     row.classList.remove("dragging");
+    cancelAnimationFrame(frame);
+    frame = 0;
+    scroller.removeEventListener("scroll", onScroll);
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onEnd);
     window.removeEventListener("pointercancel", onEnd);
   };
+  scroller.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("pointermove", onMove, { passive: false });
   window.addEventListener("pointerup", onEnd);
   window.addEventListener("pointercancel", onEnd);
