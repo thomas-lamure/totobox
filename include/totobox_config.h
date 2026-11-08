@@ -71,8 +71,11 @@ constexpr uint32_t kIdleSleepMs = 5UL * 60UL * 1000UL;
 constexpr uint32_t kHeldCardCheckMs = 10UL * 1000UL;
 // Jauge du volume sur les LEDs après un changement (molette, page, Home Assistant).
 constexpr uint32_t kVolumeOverlayMs = 1000;
-// Bande entière en blanc quand une carte maîtresse déverrouille les réglages.
-constexpr uint32_t kUnlockOverlayMs = 5000;
+// Carte maîtresse qui déverrouille les réglages: bande entière en vert, puis elle s'ouvre en deux (LEDs éteintes
+// du centre vers les bouts).
+constexpr uint32_t kUnlockHoldMs = 300;
+constexpr uint32_t kUnlockOpenMs = 600;
+constexpr uint32_t kUnlockOverlayMs = kUnlockHoldMs + kUnlockOpenMs;
 // Volume par cran de molette (%). La lib audio n'a que 22 niveaux (0 à 21, ~4,8 % chacun): 5 % fait entendre un
 // niveau à chaque cran (avec 2 %, il fallait 2 à 3 crans pour un changement audible).
 constexpr uint8_t kVolumeStepPercent = 5;

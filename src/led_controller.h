@@ -39,6 +39,8 @@ class LedController {
   void begin();
   void tick(const RuntimeState& runtime);
   void showPercentOverlay(uint8_t percent);
+  // Déverrouillage par carte maîtresse: barre verte qui s'ouvre en deux (led_layout::unlockLit).
+  void showUnlockOverlay();
   // Éteint toute la bande (avant la veille).
   void off();
   // Allume les `lit` premières LEDs (dans le sens visible de la bande) d'une couleur, éteint les autres. Pour les
@@ -67,6 +69,8 @@ class LedController {
    uint8_t overlayPercent_ = 0;
    CRGB overlayColor_ = CRGB::White;
    bool overlayDirty_ = false;
+   bool overlayUnlock_ = false;
+   uint32_t overlayStartMs_ = 0;
    bool blinkOn_ = false;
    uint32_t lastBlinkMs_ = 0;
    uint8_t uploadFill_ = 0;

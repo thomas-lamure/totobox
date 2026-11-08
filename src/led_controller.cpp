@@ -157,6 +157,14 @@ void LedController::fill(const CRGB& color, uint8_t lit) {
 void LedController::showPercentOverlay(uint8_t percent) {
   overlayPercent_ = constrain(percent, 0, 100);
   overlayColor_ = CRGB::White;
+  overlayUnlock_ = false;
+  overlayDirty_ = true;
+}
+
+void LedController::showUnlockOverlay() {
+  overlayColor_ = CRGB::Green;
+  overlayUnlock_ = true;
+  overlayStartMs_ = millis();
   overlayDirty_ = true;
 }
 
@@ -225,6 +233,18 @@ void LedController::showErrorBlink() {
 }
 
 void LedController::showOverlay() {
+  if (overlayUnlock_) {
+    // Animation: redessinée à chaque tour, show() n'envoie la trame que si elle a changé.
+    const uint32_t elapsed = millis() - overlayStartMs_;
+    for (uint8_t index = 0; index < totobox::kLedCount; ++index) {
+      const bool lit = led_layout::unlockLit(index, totobox::kLedCount, elapsed, totobox::kUnlockHoldMs,
+                                             totobox::kUnlockOpenMs);
+      leds_[physicalIndex(index)] = lit ? overlayColor_ : CRGB::Black;
+    }
+    show();
+    overlayDirty_ = false;
+    return;
+  }
   if (!overlayDirty_) {
     return;
   }

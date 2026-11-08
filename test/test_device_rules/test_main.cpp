@@ -3,6 +3,8 @@
 
 #include <unity.h>
 
+#include <string>
+
 #include "led_layout.h"
 #include "retry_delay.h"
 #include "volume_rules.h"
@@ -48,6 +50,28 @@ void test_gauge_lights_the_nearest_number_of_leds() {
   TEST_ASSERT_EQUAL_UINT8(5, led_layout::litCount(57, 8));  // 4,56 arrondi à 5
   TEST_ASSERT_EQUAL_UINT8(8, led_layout::litCount(100, 8));
   TEST_ASSERT_EQUAL_UINT8(8, led_layout::litCount(200, 8));
+}
+
+// Bande de 8 LEDs vue de face, « # » allumée, « . » éteinte.
+std::string unlockFrame(uint32_t elapsedMs, uint8_t count = 8) {
+  std::string frame;
+  for (uint8_t index = 0; index < count; ++index) {
+    frame += led_layout::unlockLit(index, count, elapsedMs, 300, 600) ? '#' : '.';
+  }
+  return frame;
+}
+
+void test_unlock_opens_from_the_center() {
+  TEST_ASSERT_EQUAL_STRING("########", unlockFrame(0).c_str());
+  TEST_ASSERT_EQUAL_STRING("########", unlockFrame(299).c_str());
+  TEST_ASSERT_EQUAL_STRING("########", unlockFrame(300).c_str());  // l'ouverture commence
+  TEST_ASSERT_EQUAL_STRING("###..###", unlockFrame(450).c_str());  // 1/4 de l'ouverture: paire du centre
+  TEST_ASSERT_EQUAL_STRING("##....##", unlockFrame(600).c_str());
+  TEST_ASSERT_EQUAL_STRING("#......#", unlockFrame(750).c_str());
+  TEST_ASSERT_EQUAL_STRING("........", unlockFrame(900).c_str());
+  TEST_ASSERT_EQUAL_STRING("........", unlockFrame(5000).c_str());
+  // Nombre impair: la LED du milieu s'éteint seule en premier.
+  TEST_ASSERT_EQUAL_STRING("###.###", unlockFrame(450, 7).c_str());
 }
 
 void test_forward_chase_loops_in_the_forward_direction() {
@@ -97,6 +121,7 @@ int main() {
   RUN_TEST(test_gauge_shows_the_volume_between_the_limits);
   RUN_TEST(test_reversed_strip_starts_at_the_last_led);
   RUN_TEST(test_gauge_lights_the_nearest_number_of_leds);
+  RUN_TEST(test_unlock_opens_from_the_center);
   RUN_TEST(test_forward_chase_loops_in_the_forward_direction);
   RUN_TEST(test_bouncing_chase_turns_back_at_both_ends);
   RUN_TEST(test_wifi_retry_delay_doubles_up_to_one_minute);

@@ -177,11 +177,11 @@ void handleCardPresented(const String& uid) {
     case card_flow::Presented::Unlock: {
       const MasterCard* card = access_lock::findCard(config, uid);
       logLine("main", "Carte maîtresse %s: réglages déverrouillés", card->label.isEmpty() ? uid.c_str() : card->label.c_str());
-      // Toute la bande en blanc quelques secondes pour confirmer sur la boîte.
+      // Confirmation sur la boîte: barre verte qui s'ouvre en deux.
       runtime.volumeOverlayActive = true;
       runtime.lastVolumeOverlayMs = millis();
       runtime.volumeOverlayDurationMs = totobox::kUnlockOverlayMs;
-      leds.showPercentOverlay(100);
+      leds.showUnlockOverlay();
       return;
     }
     case card_flow::Presented::Unknown:

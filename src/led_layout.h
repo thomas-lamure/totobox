@@ -39,4 +39,19 @@ inline Chase nextChase(Chase chase, uint8_t count, bool bounce, int8_t forwardSt
   return chase;
 }
 
+// Déverrouillage: bande entière allumée pendant `holdMs`, puis elle « s'ouvre en deux »: les LEDs s'éteignent du
+// centre vers les deux bouts, une paire à la fois, en `openMs`. Symétrique: le sens de montage ne compte pas.
+inline bool unlockLit(uint8_t visibleIndex, uint8_t count, uint32_t elapsedMs, uint32_t holdMs, uint32_t openMs) {
+  if (elapsedMs < holdMs) {
+    return true;
+  }
+  // Rang depuis le centre: 0 pour la ou les LEDs du milieu, jusqu'aux deux extrémités.
+  const uint8_t half = count / 2;
+  const uint8_t ring = count % 2 == 1 ? (visibleIndex >= half ? visibleIndex - half : half - visibleIndex)
+                                      : (visibleIndex >= half ? visibleIndex - half : half - 1 - visibleIndex);
+  const uint8_t rings = (count + 1) / 2;
+  // Le rang k s'éteint après (k + 1) / rings de l'ouverture: tout est éteint à holdMs + openMs.
+  return static_cast<uint64_t>(elapsedMs - holdMs) * rings < static_cast<uint64_t>(ring + 1) * openMs;
+}
+
 }  // namespace led_layout

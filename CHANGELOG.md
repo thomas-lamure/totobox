@@ -6,7 +6,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ### Firmware
 
-- La jauge du volume sur les LEDs s'efface 1 s après le dernier changement (5 s auparavant). La confirmation d'une carte maîtresse reste affichée 5 s.
+- La jauge du volume sur les LEDs s'efface 1 s après le dernier changement (5 s auparavant).
+- Déverrouillage par carte maîtresse: la bande s'allume en vert puis « s'ouvre en deux », les LEDs s'éteignant du centre vers les bouts (moins d'une seconde), au lieu de 5 s de bande blanche.
 
 ### Développement
 

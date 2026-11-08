@@ -20,7 +20,7 @@ Le signet est précis à l'octet près en MP3 (même à débit variable), WAV, M
 | Rouge clignotant | erreur: carte SD absente ou illisible, lecteur NFC muet, contenu de la carte impossible à lire, ou deux cartes posées ensemble (rien ne joue; l'histoire de la carte qui reste reprend environ 1,5 s après le retrait de l'autre) |
 | Bande qui se remplit de cyan | envoi de fichiers en cours (une carte posée est lue à la fin) |
 | Jauge blanche | volume, de la limite basse (vide) à la limite haute (pleine) |
-| Bande entière blanche | une carte maîtresse vient de déverrouiller les réglages |
+| Barre verte qui s'ouvre en deux (s'éteint du centre vers les bouts) | une carte maîtresse vient de déverrouiller les réglages |
 
 ## Première mise en route
 

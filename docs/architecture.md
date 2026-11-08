@@ -67,7 +67,7 @@ flowchart LR
 
 Pendant un envoi de fichiers, le serveur web traite toute la requête d'un coup: `loop()` est suspendu (NFC compris) et seules les LEDs sont rafraîchies, depuis le rappel d'envoi; les crans de molette restent comptés par interruption et le volume suit à la fin de l'envoi. Une carte posée pendant l'envoi est lue à la fin de celui-ci.
 
-Surimpressions temporaires: jauge blanche du volume pendant 1 s après le dernier changement, de la limite basse (vide) à la limite haute (pleine); bande entière blanche pendant 5 s quand une carte maîtresse déverrouille les réglages.
+Surimpressions temporaires: jauge blanche du volume pendant 1 s après le dernier changement, de la limite basse (vide) à la limite haute (pleine); barre verte qui s'ouvre en deux quand une carte maîtresse déverrouille les réglages (pleine 0,3 s, puis éteinte du centre vers les bouts en 0,6 s, `led_layout::unlockLit`).
 
 ## Persistance (NVS via ConfigStore)
 
