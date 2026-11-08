@@ -133,6 +133,6 @@ Les versions sont figées dans [platformio.ini](../platformio.ini): plateforme `
 
 ## Règles de code
 
-Elles sont dans [AGENTS.md](../AGENTS.md): architecture par services, boucles non bloquantes, tâche audio dédiée et son verrou, routes web protégées (`onApi()`, `rejectIfLocked()`, `rejectIfBusy()`), persistance par `ConfigStore`, logs par `logLine()`, et la liste des pièges matériels et de bibliothèques déjà rencontrés. À lire avant de modifier le firmware.
+Elles sont dans [AGENTS.md](../AGENTS.md): architecture par services, boucles non bloquantes, tâche audio dédiée et son verrou, routes web protégées (`onApi()` et la table `api_routes`), persistance par `ConfigStore`, logs par `logLine()`, et la liste des pièges matériels et de bibliothèques déjà rencontrés. À lire avant de modifier le firmware.
 
 Code, commentaires, interface et documentation sont en français.

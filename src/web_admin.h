@@ -12,6 +12,7 @@
 #include <WebServer.h>
 
 #include "access_lock.h"
+#include "api_routes.h"
 #include "app_types.h"
 #include "config_store.h"
 #include "id3_stripper.h"
@@ -62,8 +63,10 @@ class WebAdmin {
   void announceMdnsPeriodically();
   void redirectToPortal();
   void handleNotFound();
-  bool rejectIfBusy();
-  bool rejectIfLocked();
+  // Refus de la route d'après api_routes (verrouillage, lecture, téléchargement): code d'erreur ou nullptr.
+  const char* routeRefusal(const api_routes::Route& route) const;
+  // Envoie le refus (403 locked, 503 busy_…) et renvoie true si la route ne doit pas être traitée.
+  bool rejectIfRefused(const api_routes::Route& route);
   void handleUnlock();
   void handleLock();
   void handleLockSetup();

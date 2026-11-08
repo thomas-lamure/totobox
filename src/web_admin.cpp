@@ -9,6 +9,7 @@
 #include <esp_ota_ops.h>
 #include <mdns.h>
 
+#include "api_routes.h"
 #include "card_backup_sd.h"
 #include "ha_rules.h"
 #include "library_paths.h"
@@ -239,8 +240,17 @@ void WebAdmin::registerRoutes() {
 }
 
 void WebAdmin::onApi(const char* path, HTTPMethod method, std::function<void()> handler) {
-  server_.on(path, method, [this, handler]() {
-    if (rejectIfForeign()) {
+  // Refus communs (verrouillage, lecture, téléchargement) lus dans api_routes, appliqués ici à toutes les routes.
+  // Une route oubliée dans la table est traitée au plus strict.
+  static const api_routes::Route kStrictest = {api_routes::Method::Post, "", true, true};
+  const api_routes::Route* route =
+      api_routes::find(method == HTTP_GET ? api_routes::Method::Get : api_routes::Method::Post, path);
+  if (route == nullptr) {
+    logLine("web", "Route absente de api_routes: %s", path);
+    route = &kStrictest;
+  }
+  server_.on(path, method, [this, route, handler]() {
+    if (rejectIfForeign() || rejectIfRefused(*route)) {
       return;
     }
     handler();
@@ -396,16 +406,10 @@ void WebAdmin::handleStatus() {
 }
 
 void WebAdmin::handleGetConfig() {
-  if (rejectIfLocked()) {
-    return;
-  }
   sendJsonConfig();
 }
 
 void WebAdmin::handlePostConfig() {
-  if (rejectIfLocked()) {
-    return;
-  }
   JsonDocument doc;
   if (deserializeJson(doc, server_.arg("plain")) != DeserializationError::Ok) {
     server_.send(400, "application/json", "{\"error\":\"invalid_json\"}");
@@ -540,9 +544,6 @@ void WebAdmin::handlePostVolume() {
 }
 
 void WebAdmin::handlePostBindings() {
-  if (rejectIfLocked()) {
-    return;
-  }
   JsonDocument doc;
   if (deserializeJson(doc, server_.arg("plain")) != DeserializationError::Ok || !doc.is<JsonArray>()) {
     server_.send(400, "application/json", "{\"error\":\"invalid_bindings\"}");
@@ -584,12 +585,6 @@ void WebAdmin::handlePostBindings() {
 }
 
 void WebAdmin::handleLibrary() {
-  if (rejectIfLocked()) {
-    return;
-  }
-  if (rejectIfBusy()) {
-    return;
-  }
   JsonDocument doc;
   doc["sdReady"] = runtime_.sdReady;
   doc["rootPath"] = kLibraryRoot;
@@ -623,11 +618,18 @@ void WebAdmin::sendJson(int code, JsonDocument& doc) {
   server_.send(code, "application/json", payload);
 }
 
-bool WebAdmin::rejectIfLocked() {
-  if (!access_lock::isLocked(config_, runtime_)) {
+const char* WebAdmin::routeRefusal(const api_routes::Route& route) const {
+  return api_routes::refusal(route, access_lock::isLocked(config_, runtime_), runtime_.audioPlaying,
+                             downloadPhase_ != DownloadPhase::Idle);
+}
+
+bool WebAdmin::rejectIfRefused(const api_routes::Route& route) {
+  const char* error = routeRefusal(route);
+  if (error == nullptr) {
     return false;
   }
-  server_.send(403, "application/json", "{\"ok\":false,\"error\":\"locked\"}");
+  const int code = strcmp(error, "locked") == 0 ? 403 : 503;
+  server_.send(code, "application/json", String("{\"ok\":false,\"error\":\"") + error + "\"}");
   return true;
 }
 
@@ -739,9 +741,6 @@ void WebAdmin::sendLockError(const char* error) {
 
 // {enabled:true, cardUid, cardLabel, pin}: active avec une première carte. {enabled:false}: désactive tout.
 void WebAdmin::handleLockSetup() {
-  if (rejectIfLocked()) {
-    return;
-  }
 
   JsonDocument request;
   if (deserializeJson(request, server_.arg("plain")) != DeserializationError::Ok) {
@@ -780,9 +779,6 @@ void WebAdmin::handleLockSetup() {
 
 // {pin}: change le code de secours.
 void WebAdmin::handleLockPin() {
-  if (rejectIfLocked()) {
-    return;
-  }
   JsonDocument request;
   deserializeJson(request, server_.arg("plain"));
   if (rejectIfSealedInvalid(request)) {
@@ -806,9 +802,6 @@ void WebAdmin::handleLockPin() {
 
 // {action:"add", cardUid, cardLabel} ou {action:"remove", cardUid}.
 void WebAdmin::handleLockCards() {
-  if (rejectIfLocked()) {
-    return;
-  }
   JsonDocument request;
   if (deserializeJson(request, server_.arg("plain")) != DeserializationError::Ok) {
     sendLockError("invalid_json");
@@ -847,23 +840,7 @@ void WebAdmin::handleLockCards() {
   sendLockConfig();
 }
 
-bool WebAdmin::rejectIfBusy() {
-  if (runtime_.audioPlaying) {
-    server_.send(503, "application/json", "{\"ok\":false,\"error\":\"busy_playing\"}");
-    return true;
-  }
-  // Un seul accès à la carte à la fois: pas de renommage ni de corbeille d'un fichier en cours d'envoi.
-  if (downloadPhase_ != DownloadPhase::Idle) {
-    server_.send(503, "application/json", "{\"ok\":false,\"error\":\"busy_downloading\"}");
-    return true;
-  }
-  return false;
-}
-
 void WebAdmin::handleDownload() {
-  if (rejectIfLocked() || rejectIfBusy()) {
-    return;
-  }
   const String path = library_paths::normalizeLibraryPath(server_.arg("path"));
   if (path.isEmpty() || library_paths::isInTrash(path)) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_path\"}");
@@ -1266,13 +1243,9 @@ void WebAdmin::handleUploadData() {
       return;
     }
 
-    if (access_lock::isLocked(config_, runtime_)) {
-      uploadError_ = "locked";
-      return;
-    }
-
-    if (runtime_.audioPlaying) {
-      uploadError_ = "busy_playing";
+    // Mêmes refus que les autres routes (api_routes), relevés ici avant toute écriture: la réponse part à la fin.
+    if (const char* refused = routeRefusal(*api_routes::find(api_routes::Method::Post, "/api/upload"))) {
+      uploadError_ = refused;
       return;
     }
 
@@ -1377,12 +1350,6 @@ bool WebAdmin::writeUploadChunk(const uint8_t* data, size_t length) {
 }
 
 void WebAdmin::handleCreateFolder() {
-  if (rejectIfLocked()) {
-    return;
-  }
-  if (rejectIfBusy()) {
-    return;
-  }
   JsonDocument request;
   if (deserializeJson(request, server_.arg("plain")) != DeserializationError::Ok) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_json\"}");
@@ -1421,12 +1388,6 @@ void WebAdmin::handleCreateFolder() {
 }
 
 void WebAdmin::handleDelete() {
-  if (rejectIfLocked()) {
-    return;
-  }
-  if (rejectIfBusy()) {
-    return;
-  }
   JsonDocument request;
   if (deserializeJson(request, server_.arg("plain")) != DeserializationError::Ok) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_json\"}");
@@ -1467,12 +1428,6 @@ void WebAdmin::handleDelete() {
 }
 
 void WebAdmin::handleTrash() {
-  if (rejectIfLocked()) {
-    return;
-  }
-  if (rejectIfBusy()) {
-    return;
-  }
   JsonDocument doc;
   doc["sdReady"] = runtime_.sdReady;
   doc["trashPath"] = kTrashRoot;
@@ -1495,12 +1450,6 @@ void WebAdmin::handleTrash() {
 }
 
 void WebAdmin::handleRestore() {
-  if (rejectIfLocked()) {
-    return;
-  }
-  if (rejectIfBusy()) {
-    return;
-  }
   JsonDocument request;
   if (deserializeJson(request, server_.arg("plain")) != DeserializationError::Ok) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_json\"}");
@@ -1555,12 +1504,6 @@ void WebAdmin::removeEmptyTrashParents(const String& trashPath) {
 }
 
 void WebAdmin::handleRename() {
-  if (rejectIfLocked()) {
-    return;
-  }
-  if (rejectIfBusy()) {
-    return;
-  }
   JsonDocument request;
   if (deserializeJson(request, server_.arg("plain")) != DeserializationError::Ok) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_json\"}");
@@ -1594,13 +1537,6 @@ void WebAdmin::handleRename() {
 }
 
 void WebAdmin::handleFactoryReset() {
-  if (rejectIfLocked()) {
-    return;
-  }
-  // La sauvegarde automatique écrit sur la carte SD: pas pendant la lecture.
-  if (rejectIfBusy()) {
-    return;
-  }
   JsonDocument request;
   if (deserializeJson(request, server_.arg("plain")) != DeserializationError::Ok) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_json\"}");
@@ -1644,9 +1580,6 @@ void WebAdmin::handleFactoryReset() {
 
 // Carte présente mais illisible (exFAT, NTFS, vierge): formatage en FAT, sur demande explicite seulement.
 void WebAdmin::handleSdFormat() {
-  if (rejectIfLocked()) {
-    return;
-  }
   JsonDocument request;
   if (deserializeJson(request, server_.arg("plain")) != DeserializationError::Ok) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_json\"}");
@@ -1673,9 +1606,6 @@ void WebAdmin::handleSdFormat() {
 
 // Assistant de première connexion terminé ou remis à plus tard: il ne s'affiche plus.
 void WebAdmin::handleSetupComplete() {
-  if (rejectIfLocked()) {
-    return;
-  }
   if (!config_.setupDone) {
     config_.setupDone = true;
     store_.saveConfig(config_);
@@ -1685,9 +1615,6 @@ void WebAdmin::handleSetupComplete() {
 }
 
 void WebAdmin::handleBackupInfo() {
-  if (rejectIfLocked() || rejectIfBusy()) {
-    return;
-  }
   JsonDocument response;
   response["ok"] = true;
   card_backup::Backup backup;
@@ -1699,9 +1626,6 @@ void WebAdmin::handleBackupInfo() {
 }
 
 void WebAdmin::handleBackupSave() {
-  if (rejectIfLocked() || rejectIfBusy()) {
-    return;
-  }
   JsonDocument request;
   deserializeJson(request, server_.arg("plain"));
   const String savedAt = String(static_cast<const char*>(request["savedAt"] | ""));
@@ -1728,9 +1652,6 @@ void WebAdmin::handleBackupSave() {
 }
 
 void WebAdmin::handleBackupRestore() {
-  if (rejectIfLocked() || rejectIfBusy()) {
-    return;
-  }
   if (!runtime_.sdReady) {
     server_.send(503, "application/json", "{\"ok\":false,\"error\":\"sd_unavailable\"}");
     return;
@@ -1760,12 +1681,6 @@ void WebAdmin::handleBackupRestore() {
 }
 
 void WebAdmin::handleMove() {
-  if (rejectIfLocked()) {
-    return;
-  }
-  if (rejectIfBusy()) {
-    return;
-  }
   JsonDocument request;
   if (deserializeJson(request, server_.arg("plain")) != DeserializationError::Ok) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_json\"}");
@@ -1833,12 +1748,6 @@ String WebAdmin::movePath(const String& sourcePath, const String& targetDir, con
 }
 
 void WebAdmin::handlePurgeTrash() {
-  if (rejectIfLocked()) {
-    return;
-  }
-  if (rejectIfBusy()) {
-    return;
-  }
   JsonDocument request;
   String targetPath = kTrashRoot;
   if (!server_.arg("plain").isEmpty()) {
@@ -2128,9 +2037,6 @@ void WebAdmin::handleUpdate() {
   // Variante hors ligne: la boîte ne contacte jamais GitHub.
   server_.send(404, "application/json", "{\"ok\":false,\"error\":\"not_available\"}");
 #else
-  if (rejectIfLocked() || rejectIfBusy()) {
-    return;
-  }
   JsonDocument request;
   if (deserializeJson(request, server_.arg("plain")) != DeserializationError::Ok) {
     server_.send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_json\"}");

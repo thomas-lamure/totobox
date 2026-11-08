@@ -4,6 +4,8 @@ La page web ([web/](../web)) ne parle à la boîte que par cette API JSON locale
 
 Erreurs communes: `403 locked` (réglages verrouillés), `503 busy_playing` (accès à la carte SD refusé pendant la lecture), `503 busy_downloading` (même chose pendant un téléchargement), `403 forbidden_host`, `403 forbidden_origin` et `415 json_required` (voir « Protection contre les autres sites »).
 
+Colonnes « Verrouillée » et « En lecture »: la route est-elle servie? Elles reprennent la table du firmware ([src/api_routes.cpp](../src/api_routes.cpp)), vérifiée par `make test-scripts`.
+
 | Route | Verrouillée | En lecture | Rôle |
 |---|---|---|---|
 | `GET /` | oui | oui | page web |

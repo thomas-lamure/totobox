@@ -6,6 +6,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ### Développement
 
+- Table des routes `/api` ([src/api_routes.cpp](src/api_routes.cpp)): refus quand la boîte est verrouillée, pendant une lecture ou un téléchargement, appliqués au même endroit pour toutes les routes au lieu d'être répétés en tête de chacune. Testée sur ordinateur (verrouillée, la boîte n'expose que la lecture en cours et le volume), et comparée à docs/api.md et au faux serveur par `make test-scripts`.
 - Protection des routes: le corps attendu (aucun, JSON, ou multipart pour l'envoi de fichiers) est décidé par `request_guard::expectedBody()` d'après la méthode et le chemin, et testé route par route; les routes ne choisissent plus elles-mêmes le contrôle (cause de l'erreur 415 corrigée en 1.4.0).
 
 ## 1.4.0 - 2026-11-08
