@@ -8,7 +8,7 @@
 
 namespace totobox {
 
-constexpr const char* kFirmwareVersion = "1.5.3";
+constexpr const char* kFirmwareVersion = "1.5.4";
 constexpr const char* kFirmwareBuild = TOTOBOX_BUILD;
 
 }  // namespace totobox

@@ -4,6 +4,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.5.4 - 2026-11-08
+
 ### Page web
 
 - Fiche d'une carte: un appui sur l'emoji ouvre une grille de 32 emojis à choisir d'un toucher, sans passer par le clavier; « Autre » garde la saisie libre.
