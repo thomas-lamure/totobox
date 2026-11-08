@@ -4,6 +4,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.4.0 - 2026-11-08
+
 ### Firmware
 
 - Sans carte posée, la recherche de carte est suspendue pendant qu'on tourne la molette (reprise 400 ms après le dernier cran): le champ radio du lecteur NFC, capté par des fils d'encodeur trop proches de l'antenne, faisait monter le volume au maximum. Le remède reste d'éloigner les fils (voir docs/problemes-connus.md).
