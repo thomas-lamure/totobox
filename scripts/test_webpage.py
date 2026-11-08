@@ -6,6 +6,10 @@ Lancer depuis la racine du dépôt:
   python3 -m unittest discover -s scripts -p "test_*.py"
 """
 
+import gzip
+import hashlib
+import io
+import re
 import sys
 import tempfile
 import unittest
@@ -79,6 +83,27 @@ class RealPageTests(unittest.TestCase):
         # Tous les fichiers de web/ sont intégrés: rien d'autre à copier dans l'image LittleFS.
         sources = {p.resolve() for p in WEB.rglob("*") if p.is_file() and not p.name.startswith(".")}
         self.assertEqual(sources, used)
+
+    def test_compressed_page_fits_the_online_update(self):
+        # La mise à jour en ligne refuse une page compressée plus grosse que kUpdateMaxPageBytes (la partition
+        # LittleFS garde l'ancienne et la nouvelle le temps de l'installation): toutes les boîtes resteraient
+        # bloquées sur l'ancienne version. Même compression que scripts/build_webfs.py, dont le fichier est publié
+        # tel quel (totobox-X.Y.Z-page.html.gz).
+        config = (SCRIPTS.parent / "include" / "totobox_config.h").read_text(encoding="utf-8")
+        match = re.search(r"kUpdateMaxPageBytes\s*=\s*(\d+)\s*\*\s*(\d+)", config)
+        self.assertIsNotNone(match, "kUpdateMaxPageBytes introuvable dans totobox_config.h")
+        limit = int(match.group(1)) * int(match.group(2))
+        page, _ = webpage.assemble(WEB)
+        version = hashlib.sha256(page.encode("utf-8")).hexdigest()[:12]
+        buffer = io.BytesIO()
+        with gzip.GzipFile(filename="", mode="wb", fileobj=buffer, mtime=0, compresslevel=9) as archive:
+            archive.write(page.replace("__UI_VERSION__", version).encode("utf-8"))
+        size = len(buffer.getvalue())
+        self.assertLessEqual(
+            size, limit,
+            f"page compressée de {size} octets, plus que kUpdateMaxPageBytes ({limit}): la mise à jour en ligne "
+            "la refuserait",
+        )
 
 
 if __name__ == "__main__":
