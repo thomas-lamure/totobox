@@ -560,6 +560,8 @@ const routes = [
     const path = body.path || TRASH_ROOT;
     if (!(path === TRASH_ROOT || path.startsWith(TRASH_ROOT + "/"))) return [400, { ok: false, error: "invalid_trash_path" }];
     for (const key of [...files.keys()]) if (key.startsWith(path + "/") || (key === path && path !== TRASH_ROOT)) files.delete(key);
+    // Comme la boîte: les dossiers de la corbeille vidés par cette suppression sont retirés.
+    if (path !== TRASH_ROOT) removeEmptyTrashParents(path);
     return [200, { ok: true, path }];
   }],
   ["POST", "/api/rename", true, true, (body) => {

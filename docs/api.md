@@ -28,7 +28,7 @@ Colonnes « Verrouillée » et « En lecture »: la route est-elle servie? Elles
 | `POST /api/delete` | non | non | déplace vers `/content/.trash` |
 | `GET /api/trash` | non | non | contenu de la corbeille |
 | `POST /api/restore` | non | non | restaure depuis la corbeille; les dossiers de la corbeille vidés sont retirés |
-| `POST /api/trash/purge` | non | non | vide la corbeille |
+| `POST /api/trash/purge` | non | non | vide la corbeille, ou `{path}`: supprime définitivement un seul élément de la corbeille (les dossiers de la corbeille vidés sont retirés) |
 | `GET /api/cards/backup` | non | non | sauvegarde présente sur la SD: `exists`, `count`, `savedAt` |
 | `POST /api/cards/backup` | non | non | `{savedAt}`: sauvegarde les cartes dans `/totobox-cartes.json` (remplace la précédente) |
 | `POST /api/cards/restore` | non | non | remplace les cartes par celles de la sauvegarde (cartes maîtresses ignorées) |

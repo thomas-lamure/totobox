@@ -153,6 +153,54 @@ function trashItems(trashEntries, libraryEntries) {
   return items;
 }
 
+// Contenu d'un dossier de la corbeille, affiché comme l'écran Fichiers. kind: "file", "deleted" (dossier
+// supprimé avec son contenu) ou "folder" (dossier de rangement: son original existe encore). tracks: fichiers
+// qu'il contient, à tous les niveaux. Les dossiers sans aucun fichier ne sont pas montrés.
+function trashListing(trashEntries, libraryEntries, dir) {
+  const folders = new Set(allFolders(libraryEntries));
+  const countFiles = (entry) => (entry.type === "directory" ? (entry.children || []).reduce((sum, child) => sum + countFiles(child), 0) : 1);
+  const find = (list) => {
+    for (const entry of list || []) {
+      if (entry.path === dir) return entry.children || [];
+      if (entry.type === "directory" && dir.startsWith(entry.path + "/")) return find(entry.children);
+    }
+    return null;
+  };
+  const children = dir === TRASH_ROOT ? trashEntries || [] : find(trashEntries);
+  if (!children) return null;
+  return children
+    .map((entry) => {
+      const isDir = entry.type === "directory";
+      const kind = !isDir ? "file" : folders.has(originalPath(entry.path)) ? "folder" : "deleted";
+      return { ...entry, kind, tracks: countFiles(entry) };
+    })
+    .filter((entry) => entry.tracks > 0);
+}
+
+// Chemins à envoyer à /api/restore pour remettre en place les éléments choisis: un dossier de rangement est
+// remplacé par ce qu'il contient (le restaurer tel quel créerait « stories (1) » à côté de l'original).
+function restoreTargets(trashEntries, libraryEntries, paths) {
+  const out = [];
+  for (const path of paths) {
+    const node = findTrashNode(trashEntries, path);
+    if (!node) continue;
+    if (node.type === "directory" && allFolders(libraryEntries).includes(originalPath(path))) {
+      out.push(...trashItems(node.children, libraryEntries).map((entry) => entry.path));
+    } else {
+      out.push(path);
+    }
+  }
+  return out;
+}
+
+function findTrashNode(entries, path) {
+  for (const entry of entries || []) {
+    if (entry.path === path) return entry;
+    if (entry.type === "directory" && path.startsWith(entry.path + "/")) return findTrashNode(entry.children, path);
+  }
+  return null;
+}
+
 // ---------- Apparence des cartes ----------
 
 // Palette proposée (classes tone-*), la même que ConfigStore::cardColor. Vide = bleu.

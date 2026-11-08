@@ -12,7 +12,7 @@ import vm from "node:vm";
 const NAMES = [
   "LIBRARY_ROOT", "HOSTNAME_PATTERN", "esc", "baseName", "relPath", "prettyName", "fmtClock", "fmtDuration",
   "fmtBytes", "plural", "isAudioPath", "parentDir", "safeFolderName", "canMoveInto", "allFolders",
-  "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths", "originalPath", "trashItems", "folderDownloadPlan", "cardEmoji", "filterCards", "CARD_COLORS", "compareVersions", "parseRelease", "plainNotes",
+  "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths", "originalPath", "trashItems", "trashListing", "restoreTargets", "folderDownloadPlan", "cardEmoji", "filterCards", "CARD_COLORS", "compareVersions", "parseRelease", "plainNotes",
   "mp3FrameHeader", "firstMp3Frame", "applyMp3Gain", "mp3Crc", "readBits", "writeBits", "kWeighting", "measureLevels", "mergeLevels",
   "gatedLoudness", "mp3GainSteps", "fmtGain", "compareTrackNames", "trackPrefix", "trackOrderPlan",
 ];
@@ -467,4 +467,29 @@ test("ordre des pistes: renommages", () => {
   assert.equal(lib.trackOrderPlan(many).renames[0].to, "001-t0.mp3");
   // Déjà dans l'ordre: rien à faire.
   assert.equal(lib.trackOrderPlan(["01-a.mp3", "02-b.mp3"]).renames.length, 0);
+});
+
+test("corbeille en dossiers: rangement, dossier supprimé, fichier", () => {
+  const library = [{ path: "/content/stories", type: "directory", children: [] }];
+  const trash = [
+    { path: "/content/.trash/stories", type: "directory", children: [
+      { path: "/content/.trash/stories/a.mp3", type: "file" },
+      { path: "/content/.trash/stories/vieux", type: "directory", children: [
+        { path: "/content/.trash/stories/vieux/1.mp3", type: "file" },
+        { path: "/content/.trash/stories/vieux/2.mp3", type: "file" },
+      ] },
+      { path: "/content/.trash/stories/vide", type: "directory", children: [] },
+    ] },
+    { path: "/content/.trash/b.mp3", type: "file" },
+  ];
+  const kinds = (dir) => [...lib.trashListing(trash, library, dir)].map((e) => `${baseOf(e.path)}:${e.kind}:${e.tracks}`);
+  const baseOf = (path) => path.split("/").pop();
+  assert.deepEqual(kinds("/content/.trash"), ["stories:folder:3", "b.mp3:file:1"]);
+  assert.deepEqual(kinds("/content/.trash/stories"), ["a.mp3:file:1", "vieux:deleted:2"]);
+  assert.deepEqual(kinds("/content/.trash/stories/vieux"), ["1.mp3:file:1", "2.mp3:file:1"]);
+  assert.equal(lib.trashListing(trash, library, "/content/.trash/absent"), null);
+  // Un dossier de rangement est remplacé par son contenu; un dossier supprimé part entier.
+  assert.deepEqual([...lib.restoreTargets(trash, library, ["/content/.trash/stories", "/content/.trash/b.mp3"])],
+    ["/content/.trash/stories/a.mp3", "/content/.trash/stories/vieux", "/content/.trash/b.mp3"]);
+  assert.deepEqual([...lib.restoreTargets(trash, library, ["/content/.trash/stories/vieux/2.mp3"])], ["/content/.trash/stories/vieux/2.mp3"]);
 });

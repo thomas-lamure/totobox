@@ -97,6 +97,7 @@ const app = {
   view: "home",
   filesMode: "files",
   currentDir: LIBRARY_ROOT,
+  trashDir: TRASH_ROOT,
   // Chemins cochés dans l'écran Fichiers (null hors du mode sélection).
   selection: null,
   dismissedUid: "",
@@ -1691,6 +1692,8 @@ function showView(view) {
 }
 
 async function openFiles(mode = "files") {
+  if (mode !== app.filesMode) app.selection = null;
+  if (mode === "trash" && app.filesMode !== "trash") app.trashDir = TRASH_ROOT;
   app.filesMode = mode;
   showView("files");
   renderFiles();
@@ -1726,7 +1729,7 @@ function renderFiles() {
   }
 
   // Sélection et ordre des pistes: plus rien à cocher pendant la lecture, ni dans la corbeille.
-  if (app.selection && (busy || trashMode)) app.selection = null;
+  if (app.selection && busy) app.selection = null;
   renderSelectBar();
   $("files-select").hidden = busy || !lib || Boolean(app.selection);
   $("files-order").hidden = busy || Boolean(app.selection) || trackFiles(app.currentDir).length < 2;
@@ -1804,34 +1807,164 @@ function renderFiles() {
 
 function renderTrash() {
   const trash = app.trash;
-  const entries = trash ? trashItems(trash.entries, app.library && app.library.entries) : [];
-  $("trash-purge").hidden = !entries.length;
+  const busy = isPlaying();
+  const any = trash ? trashItems(trash.entries, app.library && app.library.entries).length > 0 : false;
+  $("trash-purge").hidden = !any || Boolean(app.selection);
+  $("trash-select").hidden = busy || !any || Boolean(app.selection);
+
+  // Fil d'Ariane: la corbeille reprend l'arborescence de la bibliothèque.
+  const parts = app.trashDir === TRASH_ROOT ? [] : app.trashDir.slice(TRASH_ROOT.length + 1).split("/");
+  const crumbs = [`<button type="button" data-trash-dir="${TRASH_ROOT}">Corbeille</button>`];
+  parts.forEach((part, index) => {
+    const path = `${TRASH_ROOT}/${parts.slice(0, index + 1).join("/")}`;
+    crumbs.push(`<span>/</span><button type="button" data-trash-dir="${esc(path)}">${esc(part)}</button>`);
+  });
+  setHtml($("trash-crumbs"), crumbs.join(""));
+
+  const entries = trash ? trashListing(trash.entries, app.library && app.library.entries, app.trashDir) : null;
+  renderTrashSelectBar(entries || []);
   if (!trash) {
-    setHtml($("trash-list"), `<div class="empty">${isPlaying() ? "Disponible quand la boîte est à l'arrêt." : "Chargement…"}</div>`);
+    setHtml($("trash-list"), `<div class="empty">${busy ? "Disponible quand la boîte est à l'arrêt." : "Chargement…"}</div>`);
     return;
   }
-  if (!entries.length) {
-    setHtml($("trash-list"), `<div class="empty">La corbeille est vide.</div>`);
+  if (!entries || !entries.length) {
+    setHtml($("trash-list"), `<div class="empty">${app.trashDir === TRASH_ROOT ? "La corbeille est vide." : "Plus rien ici."}</div>`);
     return;
   }
+  const selecting = Boolean(app.selection);
   setHtml($("trash-list"), entries
     .map((entry) => {
       const isDir = entry.type === "directory";
-      const original = originalPath(entry.path);
-      const parent = original.slice(0, original.lastIndexOf("/"));
-      const origin = parent === LIBRARY_ROOT ? "Depuis la racine" : `Depuis ${relPath(parent)}`;
+      const details = {
+        file: fmtBytes(entry.totalSize),
+        deleted: `Dossier supprimé · ${plural(entry.tracks, "piste", "pistes")} · ${fmtBytes(entry.totalSize)}`,
+        folder: `${plural(entry.tracks, "piste supprimée", "pistes supprimées")}`,
+      }[entry.kind];
+      if (selecting) {
+        const selected = app.selection.has(entry.path);
+        return `
+        <div class="row${selected ? " selected" : ""}">
+          <button class="row-body select-row" type="button" data-select="${esc(entry.path)}" aria-pressed="${selected}">
+            <span class="select-box">${icon("check")}</span>
+            ${icon(isDir ? "folder" : "music")}
+            <span class="row-text">
+              <span class="row-title" style="display:block">${esc(baseName(entry.path))}</span>
+              <span class="small">${esc(details)}</span>
+            </span>
+          </button>
+        </div>`;
+      }
       return `
         <div class="row">
           ${icon(isDir ? "folder" : "music")}
-          <div class="row-body">
-            <div class="row-title">${esc(baseName(entry.path))}</div>
-            <div class="small">${esc(origin)} · ${fmtBytes(entry.totalSize)}</div>
-          </div>
-          <button class="btn" type="button" data-restore="${esc(entry.path)}" ${isPlaying() ? "disabled" : ""}>Restaurer</button>
+          <button class="row-body" type="button" style="border:0;background:none;padding:0;text-align:left;color:inherit" ${isDir ? `data-trash-dir="${esc(entry.path)}"` : ""}>
+            <span class="row-title" style="display:block">${esc(baseName(entry.path))}</span>
+            <span class="small">${esc(details)}</span>
+          </button>
+          <button class="btn small-btn" type="button" data-restore="${esc(entry.path)}" ${busy ? "disabled" : ""}>Restaurer</button>
         </div>`;
     })
     .join(""));
 }
+
+function renderTrashSelectBar(entries) {
+  const active = Boolean(app.selection) && app.filesMode === "trash";
+  $("trash-select-bar").hidden = !active;
+  if (!active) return;
+  const here = new Set(entries.map((entry) => entry.path));
+  const count = [...app.selection].filter((path) => here.has(path)).length;
+  $("trash-select-count").textContent = count ? plural(count, "sélectionné", "sélectionnés") : "Rien de sélectionné";
+  $("trash-select-all").textContent = count && count === entries.length ? "Aucun" : "Tout";
+  ["trash-select-restore", "trash-select-delete"].forEach((id) => ($(id).disabled = !count));
+}
+
+function trashHere() {
+  return (app.trash && trashListing(app.trash.entries, app.library && app.library.entries, app.trashDir)) || [];
+}
+
+function selectedTrashPaths() {
+  if (!app.selection) return [];
+  const here = new Set(trashHere().map((entry) => entry.path));
+  return [...app.selection].filter((path) => here.has(path));
+}
+
+// Après une restauration ou une suppression: le dossier affiché a pu disparaître de la corbeille.
+async function reloadTrash() {
+  app.selection = null;
+  await Promise.all([loadTrash(), loadLibrary()]);
+  while (app.trashDir !== TRASH_ROOT && !trashListing(app.trash && app.trash.entries, app.library && app.library.entries, app.trashDir)?.length) {
+    app.trashDir = app.trashDir.slice(0, app.trashDir.lastIndexOf("/"));
+  }
+  renderFiles();
+}
+
+async function restoreMany(paths) {
+  const targets = restoreTargets(app.trash && app.trash.entries, app.library && app.library.entries, paths);
+  let restored = [];
+  let error = "";
+  for (const path of targets) {
+    const result = await api("/api/restore", { json: { path } });
+    if (!result.ok) {
+      error = result.error;
+      break;
+    }
+    restored.push(result.data.restoredPath);
+  }
+  if (error) {
+    toast(`${errorText(error)} (${restored.length}/${targets.length} restaurés)`, true);
+  } else if (restored.length === 1) {
+    toast(`Restauré dans ${relPath(parentDir(restored[0]))}.`);
+  } else {
+    toast(`${plural(restored.length, "élément restauré", "éléments restaurés")}.`);
+  }
+  await reloadTrash();
+}
+
+async function deleteForever(paths) {
+  const confirmed = await ask({
+    title: paths.length > 1 ? `Supprimer ${plural(paths.length, "élément", "éléments")} définitivement ?` : `Supprimer « ${baseName(paths[0])} » définitivement ?`,
+    message: "Ils seront effacés de la carte SD, sans retour possible.",
+    okLabel: "Supprimer définitivement",
+    danger: true,
+  });
+  if (!confirmed) return;
+  let done = 0;
+  let error = "";
+  for (const path of paths) {
+    const result = await api("/api/trash/purge", { json: { path } });
+    if (!result.ok) {
+      error = result.error;
+      break;
+    }
+    done += 1;
+  }
+  if (error) toast(`${errorText(error)} (${done}/${paths.length} supprimés)`, true);
+  else toast(`${plural(done, "élément supprimé", "éléments supprimés")} définitivement.`);
+  await reloadTrash();
+}
+
+$("trash-select").addEventListener("click", () => {
+  app.selection = new Set();
+  renderFiles();
+});
+$("trash-select-done").addEventListener("click", () => {
+  app.selection = null;
+  renderFiles();
+});
+$("trash-select-all").addEventListener("click", () => {
+  const paths = trashHere().map((entry) => entry.path);
+  const allSelected = paths.length && selectedTrashPaths().length === paths.length;
+  app.selection = new Set(allSelected ? [] : paths);
+  renderFiles();
+});
+$("trash-select-restore").addEventListener("click", () => {
+  const paths = selectedTrashPaths();
+  if (paths.length) restoreMany(paths);
+});
+$("trash-select-delete").addEventListener("click", () => {
+  const paths = selectedTrashPaths();
+  if (paths.length) deleteForever(paths);
+});
 
 $("open-files").addEventListener("click", () => {
   app.currentDir = LIBRARY_ROOT;
@@ -1841,6 +1974,12 @@ $("open-files").addEventListener("click", () => {
 $("open-trash").addEventListener("click", () => openFiles("trash"));
 $("files-back").addEventListener("click", () => {
   if (app.filesMode === "trash") {
+    if (app.trashDir !== TRASH_ROOT) {
+      app.trashDir = app.trashDir.slice(0, app.trashDir.lastIndexOf("/"));
+      app.selection = null;
+      renderFiles();
+      return;
+    }
     openFiles("files");
     return;
   }
@@ -2601,17 +2740,24 @@ async function relinkBindings(oldPath, newPath) {
   await saveBindings((list) => retargetMediaPaths(list, oldPath, newPath));
 }
 
-$("trash-list").addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-restore]");
-  if (!button) return;
-  const result = await api("/api/restore", { json: { path: button.dataset.restore } });
-  if (!result.ok) {
-    toast(errorText(result.error), true);
+$("trash-list").addEventListener("click", (event) => {
+  const select = event.target.closest("[data-select]");
+  if (select && app.selection) {
+    const path = select.dataset.select;
+    if (app.selection.has(path)) app.selection.delete(path);
+    else app.selection.add(path);
+    renderFiles();
     return;
   }
-  toast(`Restauré dans ${relPath(result.data.restoredPath.slice(0, result.data.restoredPath.lastIndexOf("/")))}.`);
-  await loadTrash();
-  app.library = null;
+  const button = event.target.closest("[data-restore]");
+  if (button) restoreMany([button.dataset.restore]);
+});
+
+document.addEventListener("click", (event) => {
+  const dir = event.target.closest("#view-files [data-trash-dir]");
+  if (!dir) return;
+  app.trashDir = dir.dataset.trashDir;
+  app.selection = null;
   renderFiles();
 });
 
@@ -2629,8 +2775,7 @@ $("trash-purge").addEventListener("click", async () => {
     return;
   }
   toast("Corbeille vidée.");
-  await loadTrash();
-  renderFiles();
+  await reloadTrash();
 });
 
 // ---------- Mise à jour du firmware ----------

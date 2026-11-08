@@ -12,6 +12,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 - Fichiers: « Sélectionner » pour déplacer, télécharger ou mettre à la corbeille plusieurs éléments d'un coup.
 - Fichiers: « Ordre des pistes » range les pistes d'un dossier (glisser ou flèches) et les renomme `01-`, `02-`…, en gardant le style de numéros déjà présent (`01_`, `1 - `…). Les cartes suivent leur piste, et un signet sur ce dossier reste sur la même piste.
 - Envoi de fichiers: une file montre l'avancement de chaque fichier, avec un bouton « Annuler »; un fichier refusé n'arrête plus les suivants.
+- Corbeille en dossiers, comme l'écran Fichiers: on ouvre un dossier supprimé pour n'en restaurer qu'un fichier, et « Sélectionner » restaure ou supprime définitivement plusieurs éléments d'un coup. Restaurer un dossier qui ne sert qu'au rangement remet son contenu en place au lieu de créer « stories (1) ».
 - Fiche d'une carte en cours de lecture: la position en cours au lieu du signet enregistré, périmé tant que la carte est posée.
 - Espace de la carte SD: l'accueil et les réglages affichent l'espace utilisé (« 18 Mo utilisés sur 32 Go »); l'espace libre arrondi donnait « 32 Go libres sur 32 Go » sur une carte presque vide.
 

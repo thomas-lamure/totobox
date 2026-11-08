@@ -284,7 +284,23 @@
         </div>
 
         <div id="trash-main" hidden>
+          <nav id="trash-crumbs" class="crumbs" aria-label="Dossier de la corbeille"></nav>
+          <p class="small muted" style="margin: 0 0 8px">« Restaurer » remet chaque élément à son emplacement d'origine.</p>
+          <div class="list-tools">
+            <button id="trash-select" class="btn ghost small-btn" type="button"><svg><use href="#i-check" /></svg>Sélectionner</button>
+          </div>
           <div id="trash-list" class="list"></div>
+          <div id="trash-select-bar" class="select-bar" hidden>
+            <div class="select-head">
+              <strong id="trash-select-count">Rien de sélectionné</strong>
+              <button id="trash-select-all" class="btn ghost small-btn" type="button">Tout</button>
+              <button id="trash-select-done" class="btn ghost small-btn" type="button">Terminé</button>
+            </div>
+            <div class="select-actions">
+              <button id="trash-select-restore" class="btn small-btn" type="button">Restaurer</button>
+              <button id="trash-select-delete" class="btn danger small-btn" type="button"><svg><use href="#i-trash" /></svg>Supprimer</button>
+            </div>
+          </div>
           <button id="trash-purge" class="btn danger block" type="button" style="margin-top: 16px"><svg><use href="#i-trash" /></svg>Vider la corbeille</button>
         </div>
 
