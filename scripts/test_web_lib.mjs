@@ -12,7 +12,7 @@ import vm from "node:vm";
 const NAMES = [
   "LIBRARY_ROOT", "HOSTNAME_PATTERN", "esc", "baseName", "relPath", "prettyName", "fmtClock", "fmtDuration",
   "fmtBytes", "plural", "isAudioPath", "parentDir", "safeFolderName", "canMoveInto", "allFolders",
-  "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths", "originalPath", "trashItems", "trashListing", "restoreTargets", "folderDownloadPlan", "cardEmoji", "filterCards", "CARD_COLORS", "compareVersions", "parseRelease", "plainNotes",
+  "normalizeHostname", "hostnameFromName", "stripId3", "retargetMediaPaths", "originalPath", "trashItems", "trashListing", "restoreTargets", "folderDownloadPlan", "cardEmoji", "CARD_EMOJIS", "filterCards", "CARD_COLORS", "compareVersions", "parseRelease", "plainNotes",
   "mp3FrameHeader", "firstMp3Frame", "applyMp3Gain", "mp3Crc", "readBits", "writeBits", "kWeighting", "measureLevels", "mergeLevels",
   "gatedLoudness", "mp3GainSteps", "fmtGain", "compareTrackNames", "trackPrefix", "trackOrderPlan", "dragScrollSpeed",
 ];
@@ -508,4 +508,11 @@ test("défilement automatique pendant un glissement", () => {
   // Zone basse: bandes réduites au quart, le milieu reste immobile.
   assert.equal(lib.dragScrollSpeed(150, 100, 200), 0);
   assert.equal(lib.dragScrollSpeed(100, 100, 200), -960);
+});
+
+test("emojis proposés pour les cartes", () => {
+  assert.equal(lib.CARD_EMOJIS.length, 32);
+  assert.equal(new Set(lib.CARD_EMOJIS).size, 32, "doublon");
+  // Tous acceptés tels quels par la page (et par la boîte: 16 octets au plus).
+  for (const emoji of lib.CARD_EMOJIS) assert.equal(lib.cardEmoji(emoji), emoji);
 });

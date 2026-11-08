@@ -1128,7 +1128,41 @@ $("card-colors").addEventListener("click", (event) => {
   if (!swatch) return;
   editing.color = swatch.dataset.color === "blue" ? "" : swatch.dataset.color;
   renderCardColors();
+  renderCardEmoji();
 });
+
+// Emoji: un bouton montre celui de la carte (ou le livre par défaut) dans sa couleur, et ouvre une grille
+// d'emojis à choisir d'un toucher, sans clavier. Le champ « Autre » garde la valeur et accepte n'importe quel emoji.
+function renderCardEmoji() {
+  const value = cardEmoji($("card-emoji").value);
+  const pick = $("card-emoji-pick");
+  pick.className = `tile-icon emoji-pick tone-${editing.color || "blue"}`;
+  setHtml(pick, value ? esc(value) : icon("book"));
+  setHtml(
+    $("card-emoji-grid"),
+    [
+      `<button class="emoji-none" type="button" data-emoji="" aria-label="Aucun emoji (livre)" aria-pressed="${!value}">${icon("book")}</button>`,
+      ...CARD_EMOJIS.map((emoji) => `<button type="button" data-emoji="${emoji}" aria-pressed="${value === emoji}">${emoji}</button>`),
+    ].join(""),
+  );
+}
+
+$("card-emoji-pick").addEventListener("click", () => {
+  const panel = $("card-emoji-panel");
+  panel.hidden = !panel.hidden;
+  $("card-emoji-pick").setAttribute("aria-expanded", String(!panel.hidden));
+});
+
+$("card-emoji-grid").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-emoji]");
+  if (!button) return;
+  $("card-emoji").value = button.dataset.emoji;
+  renderCardEmoji();
+  $("card-emoji-panel").hidden = true;
+  $("card-emoji-pick").setAttribute("aria-expanded", "false");
+});
+
+$("card-emoji").addEventListener("input", renderCardEmoji);
 
 function openCard(index) {
   const binding = bindings()[index];
@@ -1142,6 +1176,9 @@ function openCard(index) {
   $("card-emoji").value = binding.emoji || "";
   editing.color = binding.color || "";
   renderCardColors();
+  $("card-emoji-panel").hidden = true;
+  $("card-emoji-pick").setAttribute("aria-expanded", "false");
+  renderCardEmoji();
   $("card-uid").textContent = binding.uid;
   renderCardDialog(binding);
   openDialog($("card-dialog"));

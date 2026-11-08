@@ -211,6 +211,13 @@ const CARD_COLORS = [
 
 // Emoji ou court texte de la tuile, vérifié comme ConfigStore::cardEmoji: 16 octets UTF-8 au plus, sans caractère
 // de contrôle ni « < > " & ». Rend "" sinon.
+// Emojis proposés dans la fiche d'une carte (un toucher, sans clavier): animaux, contes, ciel, musique, véhicules.
+// Un seul caractère chacun, sans séquence composée, pour qu'ils s'affichent sur les téléphones anciens.
+const CARD_EMOJIS = [
+  "🦊", "🐻", "🐰", "🐱", "🐶", "🦁", "🐸", "🐷", "🐘", "🦄", "🐉", "🦖", "🐢", "🐝", "🦋", "🐟",
+  "🏰", "👑", "🧚", "🧙", "🌙", "⭐", "🌈", "☀️", "🎵", "🎸", "🚀", "🚂", "🚒", "🚜", "⛵", "📚",
+];
+
 function cardEmoji(value) {
   const text = String(value || "").trim();
   if (new TextEncoder().encode(text).length > 16) return "";
