@@ -4,6 +4,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.5.1 - 2026-11-08
+
 ### Firmware
 
 - Apparence des cartes: `/api/config` renvoie maintenant l'emoji et la couleur. Ils étaient enregistrés mais absents de la réponse, si bien que la page revenait à l'apparence par défaut.
