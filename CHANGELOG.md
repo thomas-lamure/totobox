@@ -4,6 +4,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.5.0 - 2026-11-08
+
 ### Page web
 
 - Lecture en cours: barre de progression et durée de la piste (`activeDurationMs` dans `/api/status`).
