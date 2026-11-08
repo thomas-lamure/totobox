@@ -4,6 +4,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Les
 
 ## Non publié
 
+## 1.5.3 - 2026-11-08
+
 ### Page web
 
 - Ordre des pistes: une piste glissée près du haut ou du bas de la fenêtre fait défiler la liste, pour l'emmener loin dans un long dossier.
