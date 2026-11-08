@@ -88,7 +88,7 @@ Au premier démarrage d'une boîte sans données d'usine, le mot de passe du poi
 ```bash
 make test          # tout
 make test-native   # pio test -e native: modules du firmware sans matériel (Unity)
-make test-scripts  # scripts du dépôt: assemblage de la page, publication des versions (unittest)
+make test-scripts  # scripts du dépôt: assemblage de la page, publication des versions, routes et champs de l'API comparés au faux serveur et à docs/api.md (unittest)
 make test-web      # fonctions pures de la page, web/lib.js (node --test)
 make test-cad      # outils du boîtier (unittest)
 make check-cad     # DXF et PDF versionnés à jour avec leurs contours

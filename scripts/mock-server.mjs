@@ -65,7 +65,7 @@ const config = {
 };
 
 let bindings = [
-  { uid: "04A1B2C3", label: "Le Petit Prince", mediaPath: "/content/stories/petit-prince", mode: "sd_local", resumeTrackIndex: 1, resumeMs: 83000, resumeByte: 0 },
+  { uid: "04A1B2C3", label: "Le Petit Prince", mediaPath: "/content/stories/petit-prince", mode: "sd_local", resumeTrackIndex: 1, resumeMs: 83000, resumeByte: 0, emoji: "🦊", color: "amber" },
   { uid: "04D4E5F6", label: "Comptines", mediaPath: "/content/music/comptines", mode: "sd_local", resumeTrackIndex: 0, resumeMs: 0, resumeByte: 0 },
 ];
 
@@ -806,6 +806,15 @@ async function readBody(request) {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
   return Buffer.concat(chunks);
+}
+
+// Réponses de /api/status et /api/config, sans ouvrir de port (scripts/test_api_routes.py compare leurs champs à
+// ceux du firmware): une carte en lecture et une carte maîtresse, pour que les champs conditionnels apparaissent.
+if (process.argv.includes("--dump")) {
+  config.lockCards = [{ uid: "04ABCDEF", label: "Clé", pin: "" }];
+  placeCard(bindings[0].uid);
+  console.log(JSON.stringify({ status: status(), config: configJson() }));
+  process.exit(0);
 }
 
 createServer(async (request, response) => {

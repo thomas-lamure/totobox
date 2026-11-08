@@ -44,14 +44,21 @@ Colonnes « Verrouillée » et « En lecture »: la route est-elle servie? Elles
 - `state`, `audioPlaying`, `stoppedRemotely` (lecture arrêtée depuis Home Assistant, carte toujours posée: `state` vaut `paused`), `activeCardUid`, `activeCardLabel`, `activeMediaPath`, `activeTrackIndex`, `activeTrackCount`, `activePositionMs`, `activeDurationMs` (durée de la piste en cours, 0 si pas encore connue);
 - `currentVolume`, `volumeMin`, `volumeMax`;
 - `lockEnabled`, `locked`, `lastUnknownCardUid` (vide si verrouillée);
-- `sdState` (`absent`, `unreadable`: présente mais pas en FAT32, `ready`) et l'espace SD;
-- `wifiMode`, `wifiIp`, `hostname`, `networkAttempt` (résultat du dernier changement de Wi-Fi);
+- `sdReady`, `sdState` (`absent`, `unreadable`: présente mais pas en FAT32, `ready`) et l'espace SD en octets: `sdTotalBytes`, `sdUsedBytes`, `sdFreeBytes` (dernières valeurs connues pendant la lecture);
+- `wifiConnected`, `wifiMode`, `wifiSsid`, `wifiIp`, `hostname`, `networkAttempt` (dernier changement de Wi-Fi lancé depuis la page: `id`, augmenté à chaque essai, `state` = `trying`, `connected`, `failed` ou vide, `ssid`, `ip`, `error` et `apClosesInSec`, secondes avant la fermeture du point d'accès);
+- `nfcReady` (lecteur NFC détecté) et `bindingsCount` (nombre de cartes associées);
 - `setupDone` (faux: la page ouvre l'assistant de première connexion);
 - `uiVersion` (version de la page dans LittleFS: une page plus ancienne propose de se recharger);
 - `boxKey` et `challenge` (canal chiffré des secrets, voir plus bas);
 - `updateRepo` (dépôt GitHub des versions, `propriétaire/nom`), `updateNotify` et `autoUpdate` (réglages des mises à jour, aussi dans `/api/config` avec `lastUpdateCheck`, date de la dernière recherche automatique en secondes depuis 1970), et `update` (mise à jour en ligne: `phase` = `idle`, `checking` (recherche automatique), `page`, `firmware`, `restarting` ou `failed`, `version`, `done` et `total` en octets du fichier en cours, `error`).
 
 - `homeAssistant` (absent si verrouillée): `enabled`, `state` (`off`, `connecting`, `connected`, `error`) et `error` (`invalid_address`, `no_wifi`: pas connectée au Wi-Fi de la maison, `dns`, `unreachable`, `auth`).
+
+`GET /api/config` renvoie les réglages (`volumeMin`, `volumeMax`, `currentVolume`, `wifiSsid`, `apSsid`, `hostname`, `updateNotify`, `autoUpdate`, `lastUpdateCheck`, `lockEnabled`, Home Assistant ci-dessous), les cartes maîtresses `lockCards` (`uid`, `label`) et les cartes associées `bindings`, la liste que `POST /api/bindings` remplace en entier:
+
+- `uid`, `label`, `mediaPath` (fichier ou dossier dans `/content`), `mode` (`sd_local`);
+- le signet: `resumeTrackIndex`, `resumeMs` et `resumeByte` (position dans le fichier, 0 si inconnue);
+- l'apparence dans la page, absente si elle est par défaut: `emoji` (16 octets au plus) et `color` (`blue`, `green`, `amber`, `red`, `purple`, `pink`, `teal`). Une valeur invalide est ignorée.
 
 Réglages Home Assistant ([home-assistant.md](home-assistant.md)), dans `GET` et `POST /api/config`: `haEnabled`, `haAddress` (adresse de Home Assistant ou du broker MQTT: nom, IP, `hôte:port`, `mqtt://hôte:port` ou adresse de la page Home Assistant, dont le port web est ignoré; `homeassistant.local` par défaut), `mqttUser`, `mqttPassword` (secret: envoyé chiffré, jamais renvoyé; `GET` donne seulement `mqttPasswordSet`; absent = inchangé, vide = effacé). Erreurs: `invalid_ha_address`, `ha_tls_unsupported` (`mqtts://`, pas encore pris en charge), `invalid_mqtt_user`, `invalid_mqtt_password` (64 caractères au plus). L'adresse est vérifiée quand elle change et quand la liaison est activée.
 
